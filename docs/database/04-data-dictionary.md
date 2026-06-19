@@ -2,6 +2,17 @@
 
 Identificadores em inglês; conteúdo de dados em português (domínio NR-12).
 
+> **Status da revisão de propriedades (fase atual).** Estamos
+> redocumentando o dicionário entidade por entidade, com revisão
+> deliberada de cada propriedade.
+> - ✅ **Norma** (`standards`, `standard_amendments`, `standard_versions`,
+>   `standard_sections`, `standard_items`) — confirmada.
+> - ⏳ Demais tabelas abaixo: ainda no rascunho do remodel anterior e
+>   **não refletem** as decisões conceituais recentes (hierarquia de
+>   máquina `type → model → unit`, `locations`, `professionals`/`arts`,
+>   ganchos de marketplace, base de conhecimento). Serão revisadas nos
+>   próximos blocos.
+
 Convenções aplicadas em todas as tabelas (ver
 [`03-naming-conventions.md`](03-naming-conventions.md)):
 - PK sempre `id uuid not null default gen_random_uuid()`.
@@ -17,24 +28,52 @@ Convenções aplicadas em todas as tabelas (ver
 # Camada 1 — Referência (global, sem `account_id`, sem RLS de tenant)
 
 ## `standards`
-A norma regulamentadora.
+A norma regulamentadora. Sem soft delete (norma não se "apaga"; revogação
+acontece no nível da versão/portaria).
 
 | Coluna | Tipo | Null? | Default | Descrição |
 |---|---|---|---|---|
 | `id` | uuid | não | `gen_random_uuid()` | PK |
 | `code` | text | não | — | Código da norma, ex. `NR-12`. `unique` |
-| `title` | text | não | — | Título completo |
+| `title` | text | não | — | Título completo, ex. "Segurança no trabalho em máquinas e equipamentos" |
+| `description` | text | sim | `null` | Contexto opcional |
 | `created_at` | timestamptz | não | `now()` | — |
 
-## `standard_versions`
-Versão (revisão/portaria) de uma norma. **Imutável após `published`.**
+## `standard_amendments`
+As portarias da norma: a *Publicação* original + cada *Alteração/
+Atualização*. É o ramo legal/proveniência — dá rastreabilidade pra
+citação no laudo, sem custo de reestruturar os itens a cada alteração.
 
 | Coluna | Tipo | Null? | Default | Descrição |
 |---|---|---|---|---|
 | `id` | uuid | não | `gen_random_uuid()` | PK |
 | `standard_id` | uuid | não | — | FK → `standards.id` |
-| `version_label` | text | não | — | Ex. `2023` ou referência da portaria |
-| `effective_from` | date | sim | — | Data de vigência |
+| `type` | text | não | — | `check in ('publication','amendment')` — "Publicação" vs "Alteração/Atualização" |
+| `number` | text | não | — | Ex. `n.º 916` |
+| `issuing_body` | text | não | — | Órgão emissor (muda no tempo): `MTb`, `SSST`, `SIT`, `MTE`, `MTPS`, `SEPRT`, `MTP`… |
+| `signed_date` | date | não | — | Data da portaria (ex. 30/07/2019) |
+| `dou_date` | date | sim | `null` | Data de publicação no D.O.U. (ex. 31/07/2019) |
+| `url` | text | sim | `null` | Link pro texto oficial |
+| `position` | integer | sim | — | Ordem cronológica na lista |
+| `created_at` | timestamptz | não | `now()` | — |
+
+A *Publicação* original (Portaria MTb 3.214/1978) é `type = 'publication'`;
+todo o resto é `'amendment'`.
+
+## `standard_versions`
+Versão **estruturada** (a redação consolidada) sobre a qual se montam
+checklists. **Imutável após `published`.** Mantemos a versão vigente +
+o histórico de `standard_amendments`; cria-se versão nova só em
+consolidações relevantes (ver [ADR 0004](../adr/0004-immutable-versioning-and-freeze.md)).
+
+| Coluna | Tipo | Null? | Default | Descrição |
+|---|---|---|---|---|
+| `id` | uuid | não | `gen_random_uuid()` | PK |
+| `standard_id` | uuid | não | — | FK → `standards.id` |
+| `defining_amendment_id` | uuid | sim | `null` | FK → `standard_amendments.id` — a portaria que deu esta redação (ex. 916/2019) |
+| `version_label` | text | não | — | Etiqueta da redação, ex. "Redação 916/2019, consolidada até 4.219/2022" |
+| `effective_from` | date | sim | — | Início de vigência |
+| `effective_until` | date | sim | `null` | Fim de vigência (null = vigente) — facilita "qual versão valia na data da inspeção" |
 | `status` | text | não | `'draft'` | `check in ('draft','published','revoked')` |
 | `published_at` | timestamptz | sim | — | Quando foi publicada |
 | `created_at` | timestamptz | não | `now()` | — |
@@ -63,11 +102,14 @@ A cláusula da norma. Suporta aninhamento via `parent_item_id`.
 |---|---|---|---|---|
 | `id` | uuid | não | `gen_random_uuid()` | PK |
 | `standard_section_id` | uuid | não | — | FK → `standard_sections.id` |
-| `parent_item_id` | uuid | sim | `null` | FK → `standard_items.id` (sub-item) |
+| `standard_version_id` | uuid | não | — | **Denormalizado** (filosofia do [ADR 0002](../adr/0002-postgres-supabase-multi-tenant-rls.md)): permite `unique (standard_version_id, number)` e consultar todos os itens da versão sem join |
+| `parent_item_id` | uuid | sim | `null` | FK → `standard_items.id` (sub-item aninhado, ex. 12.1.1.1) |
 | `number` | text | não | — | Ex. `12.1.1` |
 | `text` | text | não | — | Texto da cláusula |
-| `position` | integer | não | — | Ordem dentro da seção |
+| `position` | integer | não | — | Ordem dentro da seção/pai |
 | `created_at` | timestamptz | não | `now()` | — |
+
+`unique (standard_version_id, number)`.
 
 ## `machine_types`
 | Coluna | Tipo | Null? | Default | Descrição |
