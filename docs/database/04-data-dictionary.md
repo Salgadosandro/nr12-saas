@@ -7,6 +7,8 @@ Identificadores em inglês; conteúdo de dados em português (domínio NR-12).
 > deliberada de cada propriedade.
 > - ✅ **Norma** (`standards`, `standard_amendments`, `standard_versions`,
 >   `standard_sections`, `standard_items`) — confirmada.
+> - ✅ **Checklist** (`checklists`, `checklist_versions`,
+>   `checklist_version_items`) — confirmada (checklist agnóstico de máquina).
 > - ⏳ Demais tabelas abaixo: ainda no rascunho do remodel anterior e
 >   **não refletem** as decisões conceituais recentes (hierarquia de
 >   máquina `type → model → unit`, `locations`, `professionals`/`arts`,
@@ -144,46 +146,60 @@ Sandro (a fechar antes da migration de seed).
 
 ## `checklists`
 Checklist nomeado do tenant, construído sobre uma versão da norma.
+Deliberadamente **agnóstico de máquina**: a aplicabilidade é julgamento
+do engenheiro no momento da inspeção (varia com experiência e local),
+não um atributo estático. A análise por tipo/modelo vem da máquina
+inspecionada, não daqui.
 
 | Coluna | Tipo | Null? | Default | Descrição |
 |---|---|---|---|---|
 | `id` | uuid | não | `gen_random_uuid()` | PK |
 | `account_id` | uuid | não | — | FK → `accounts.id` (RLS) |
-| `standard_version_id` | uuid | não | — | FK → `standard_versions.id` |
-| `machine_type_id` | uuid | sim | `null` | FK → `machine_types.id` (destino opcional) |
+| `standard_version_id` | uuid | não | — | FK → `standard_versions.id` — a redação que este checklist usa |
 | `name` | text | não | — | Ex. "Checklist Prensas — Linha 3" |
 | `description` | text | sim | — | — |
 | `created_at` / `updated_at` | timestamptz | não | `now()` | — |
 | `deleted_at` | timestamptz | sim | `null` | Soft delete |
 
 ## `checklist_versions`
-Versão imutável (uma seleção publicada). **Imutável após `published`.**
+Uma seleção publicada. Mutável enquanto `draft`, **imutável após
+`published`** (trigger). `updated_at` só vale enquanto `draft`.
 
 | Coluna | Tipo | Null? | Default | Descrição |
 |---|---|---|---|---|
 | `id` | uuid | não | `gen_random_uuid()` | PK |
-| `account_id` | uuid | não | — | FK → `accounts.id` (RLS) |
+| `account_id` | uuid | não | — | FK → `accounts.id` (RLS, denormalizado) |
 | `checklist_id` | uuid | não | — | FK → `checklists.id` |
 | `version_number` | integer | não | — | 1, 2, 3… |
 | `status` | text | não | `'draft'` | `check in ('draft','published')` |
 | `published_at` | timestamptz | sim | — | — |
-| `created_at` | timestamptz | não | `now()` | — |
+| `created_at` / `updated_at` | timestamptz | não | `now()` | — |
 
 `unique (checklist_id, version_number)`.
 
 ## `checklist_version_items`
-A seleção: quais itens da norma entram nesta versão (só os incluídos).
+A seleção: quais itens da norma entram nesta versão (só os **incluídos**;
+o que foi desmarcado é a ausência). Desmarcar um módulo = ausência de
+todos os seus itens (toggle de módulo é açúcar de UI).
 
 | Coluna | Tipo | Null? | Default | Descrição |
 |---|---|---|---|---|
 | `id` | uuid | não | `gen_random_uuid()` | PK |
-| `account_id` | uuid | não | — | FK → `accounts.id` (RLS) |
+| `account_id` | uuid | não | — | FK → `accounts.id` (RLS, denormalizado) |
 | `checklist_version_id` | uuid | não | — | FK → `checklist_versions.id` |
-| `standard_item_id` | uuid | não | — | FK → `standard_items.id` |
+| `standard_version_id` | uuid | não | — | **Denormalizado** — para a FK composta de integridade abaixo |
+| `standard_item_id` | uuid | não | — | FK → `standard_items.id` — o item da norma incluído |
 | `position` | integer | sim | — | Ordem (default: a do item na norma) |
 | `created_at` | timestamptz | não | `now()` | — |
 
-`unique (checklist_version_id, standard_item_id)`.
+Constraints:
+- `unique (checklist_version_id, standard_item_id)` — um item entra uma
+  vez por versão.
+- **FK composta** `(standard_version_id, standard_item_id)` →
+  `standard_items (standard_version_id, id)`: garante a nível de banco
+  que só se inclui item da **mesma** versão da norma que o checklist usa
+  — não confia na aplicação. O texto da cláusula vem congelado de graça,
+  porque a `standard_version` referenciada é imutável.
 
 ---
 
