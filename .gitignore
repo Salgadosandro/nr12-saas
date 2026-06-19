@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node / frontend (futuro)
+node_modules/
+.next/
+dist/
+build/
+
+# Variáveis de ambiente / segredos — nunca commitar
+.env
+.env.local
+.env*.local
+
+# Supabase CLI (futuro)
+.supabase/
+
+# Sistema
+.DS_Store
+Thumbs.db
