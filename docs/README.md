@@ -24,4 +24,4 @@ cabeça de alguém — fica escrita, com contexto e consequências.
 3. [`database/03-naming-conventions.md`](database/03-naming-conventions.md)
 4. [`database/04-data-dictionary.md`](database/04-data-dictionary.md)
 5. [`database/05-row-level-security.md`](database/05-row-level-security.md)
-6. ADRs relacionados: [0002](adr/0002-postgres-supabase-multi-tenant-rls.md), [0003](adr/0003-data-driven-risk-matrix.md)
+6. ADRs relacionados: [0002](adr/0002-postgres-supabase-multi-tenant-rls.md), [0003](adr/0003-data-driven-risk-matrix.md), [0004](adr/0004-immutable-versioning-and-freeze.md), [0005](adr/0005-nonconformity-as-response-state.md)

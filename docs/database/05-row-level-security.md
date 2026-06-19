@@ -34,10 +34,19 @@ $$;
 - Retorna `setof uuid` porque no v1 um usuário só deveria pertencer a
   uma conta, mas a função já suporta múltiplas sem migration futura.
 
+## Quais tabelas são tenant-scoped vs referência
+
+| Camada | Tabelas | RLS |
+|---|---|---|
+| **Referência (global)** | `standards`, `standard_versions`, `standard_sections`, `standard_items`, `machine_types`, `location_types`, `risk_matrix_rules` | Sem `account_id`. Leitura para qualquer autenticado; escrita só por role admin. |
+| **Tenant-scoped** | `accounts`*, `account_members`*, `clients`, `machines`, `checklists`, `checklist_versions`, `checklist_version_items`, `inspections`, `inspection_responses`, `response_photos`, `reports`, `action_plans` | `account_id` + as 4 políticas abaixo. |
+
+\* `accounts` e `account_members` têm tratamento especial (ver no fim).
+
 ## Padrão de política, por tabela tenant-scoped
 
-Toda tabela com `account_id` (todas exceto `risk_matrix_rules`) recebe
-exatamente este padrão — usando `inspections` como exemplo:
+Toda tabela com `account_id` recebe exatamente este padrão — usando
+`inspections` como exemplo:
 
 ```sql
 alter table inspections enable row level security;
@@ -80,14 +89,31 @@ alter table inspections
 conta — é uma decisão de v1.1, já que no v1 cada usuário pertence a
 exatamly uma conta.)
 
-## `risk_matrix_rules` é a exceção deliberada
+## A camada de referência é a exceção deliberada
 
-Não tem `account_id`, não tem RLS de escrita por tenant — é dado de
-referência global. Política: leitura liberada pra qualquer usuário
-autenticado, escrita restrita a uma role administrativa (não exposta
-ao usuário final). Isso é coerente com ela representar uma regra de
-domínio compartilhada (ver ADR 0003), não um dado de um cliente
-específico.
+As 7 tabelas de referência (norma e sua hierarquia, tipos, matriz de
+risco) não têm `account_id` nem RLS de escrita por tenant — são regra
+de domínio compartilhada. Política: leitura liberada para qualquer
+usuário autenticado, escrita restrita a uma role administrativa (não
+exposta ao usuário final). É coerente com elas representarem o
+conhecimento normativo comum (ver ADR 0002 e 0003), não dado de um
+cliente.
+
+Ponto de atenção: os **checklists** são tenant-scoped (cada conta tem
+os seus), mas eles **referenciam** dados globais (`standard_items` via
+`checklist_version_items`). Isso é seguro: ler um `standard_item` não
+vaza nada de outro tenant — a norma é pública. O que é isolado é a
+*seleção* que cada conta fez.
+
+## Imutabilidade não é RLS — é constraint/trigger separado
+
+RLS controla *quem vê o quê*, não *o que pode mudar*. A imutabilidade
+de versões publicadas (`standard_versions`/`checklist_versions` com
+`status = 'published'`) e de registros append-only
+(`inspection_responses`, `response_photos`) é imposta por **trigger**
+`BEFORE UPDATE/DELETE` que bloqueia a alteração, não por política de
+RLS. Manter os dois mecanismos separados deixa claro qual problema cada
+um resolve.
 
 ## Estratégia de teste (antes de escrever qualquer linha de app)
 

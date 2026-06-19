@@ -6,19 +6,35 @@ requisitos, não o contrário.
 
 ## Requisitos funcionais
 
+### Isolamento e cadastro
 | ID | Requisito |
 |---|---|
 | FR1 | Cada conta (tenant) só pode ver/alterar seus próprios dados. Isolamento garantido no banco (ver [ADR 0002](../adr/0002-postgres-supabase-multi-tenant-rls.md)). |
 | FR2 | Uma conta gerencia múltiplos clientes (empresas inspecionadas). |
-| FR3 | Um cliente possui múltiplas máquinas/equipamentos. |
+| FR3 | Um cliente possui múltiplas máquinas/equipamentos. Cada máquina tem um tipo (`machine_types`) e um tipo de local (`location_types`). |
 | FR4 | Uma máquina possui um histórico de inspeções (1:N). |
-| FR5 | Uma inspeção chega ao sistema como rascunho, originada de um payload bruto coletado via WhatsApp/n8n (JSON), antes de ser estruturada. |
-| FR6 | Uma inspeção segue um ciclo de vida de 3 estados: `rascunho → em_revisao → finalizado`. Transições são sempre "pra frente" (não existe voltar de finalizado pra rascunho — uma correção pós-finalização gera observação nova, não reabre o registro). |
-| FR7 | Uma inspeção finalizada tem uma data de validade (`valid_until`), calculada como `data_da_inspecao + meses_validade_padrao_da_conta`. O prazo de validade é uma política de negócio da própria conta (consultoria), não um valor fixo da NR-12 — é configurável por conta (`accounts.default_validity_months`). |
-| FR8 | Uma inspeção pode ter múltiplas não-conformidades. |
-| FR9 | Cada não-conformidade é classificada por uma matriz de risco (Probabilidade x Severidade → Nível de Risco), com a matriz armazenada como dado (ver [ADR 0003](../adr/0003-data-driven-risk-matrix.md)), não fixa em código. |
-| FR10 | Cada não-conformidade pode ter um plano de ação simples: descrição em texto livre, responsável e prazo. Sem workflow de aprovação no v1. |
-| FR11 | O texto técnico do laudo é gerado por IA a partir dos dados brutos da inspeção, mas a versão final (editada/aprovada pelo engenheiro) é armazenada separadamente do rascunho gerado pela IA — precisamos do antes e do depois, para auditoria e para melhorar os prompts no futuro. |
+
+### Norma e checklist
+| ID | Requisito |
+|---|---|
+| FR5 | Uma norma (ex. NR-12) é estruturada hierarquicamente: `norma → versão → seção (módulo/anexo) → item`. Itens podem ter sub-itens aninhados. Modelado genérico para suportar outras normas (NR-10, NR-13…) no futuro. |
+| FR6 | A norma é versionada. Cada versão é imutável após publicada, para que laudos antigos permaneçam fiéis à norma vigente no momento da inspeção (ver [ADR 0004](../adr/0004-immutable-versioning-and-freeze.md)). |
+| FR7 | O "checklist geral" é uma versão da norma inteira, expandida em todos os seus itens. Não é uma entidade separada. |
+| FR8 | Cada conta cria checklists próprios selecionando (desmarcando) módulos/itens da norma. Cada seleção publicada é uma `checklist_version` imutável. |
+| FR9 | "Desmarcar" um item (não entra na inspeção) é diferente de respondê-lo como "não se aplica" durante a inspeção — são conceitos e momentos distintos. |
+
+### Inspeção, respostas e laudo
+| ID | Requisito |
+|---|---|
+| FR10 | Uma inspeção congela a `checklist_version` usada, garantindo rastreabilidade mesmo após mudanças posteriores no checklist/norma. |
+| FR11 | A inspeção pode ser originada de um payload bruto coletado via WhatsApp/n8n (JSON), preservado em `raw_whatsapp_payload`. Status da inspeção: `in_field → completed`. |
+| FR12 | Cada item respondido gera uma resposta: `compliant / non_compliant / not_applicable`. Respostas `non_compliant` exigem justificativa, classificação de risco e podem ter até 3 fotos. Justificativa **não** é obrigatória para `not_applicable`. |
+| FR13 | Uma não-conformidade não é uma entidade própria — é uma resposta com `status = non_compliant` (ver [ADR 0005](../adr/0005-nonconformity-as-response-state.md)). |
+| FR14 | Cada não-conformidade é classificada por matriz de risco (Probabilidade × Severidade → Nível), armazenada como dado (ver [ADR 0003](../adr/0003-data-driven-risk-matrix.md)), não fixa em código. |
+| FR15 | Cada não-conformidade pode ter planos de ação simples: descrição, responsável (texto livre) e prazo. Sem workflow de aprovação no v1. |
+| FR16 | Um laudo (`reports`) consolida várias inspeções (1:N) e é emitido para um cliente. A inspeção pertence a no máximo um laudo (`report_id` anulável até consolidar). |
+| FR17 | A data de validade (`valid_until`) é por inspeção/máquina (não por laudo), calculada como `inspection_date + accounts.default_validity_months`. O prazo é política da conta, configurável, não um valor fixo da NR-12. |
+| FR18 | O laudo segue o ciclo `draft → in_review → final`. O texto técnico é gerado por IA (`ai_generated_text`) e a versão final editada pelo engenheiro é armazenada separadamente (`final_text`) — guardamos o antes e o depois, para auditoria e melhoria de prompts. |
 
 ## Requisitos não funcionais
 
@@ -27,7 +43,8 @@ requisitos, não o contrário.
 | NFR1 | RLS habilitado e testado em toda tabela tenant-scoped. A aplicação nunca é a única camada de isolamento. |
 | NFR2 | Toda tabela tem colunas de auditoria `created_at` / `updated_at` (timestamptz, UTC). |
 | NFR3 | Convenções de nomenclatura consistentes em todo o schema — ver [`03-naming-conventions.md`](03-naming-conventions.md). |
-| NFR4 | Exclusão é lógica (soft delete via `deleted_at`) para `clients`, `machines` e `inspections` — dados de inspeção têm valor de auditoria/histórico e não devem ser apagados fisicamente por engano. Tabelas puramente operacionais (`account_members`) podem usar exclusão física. |
+| NFR4 | Exclusão é lógica (soft delete via `deleted_at`) para `clients`, `machines`, `inspections`, `reports` e `checklists` — têm valor de auditoria/histórico e não devem ser apagados fisicamente por engano. Tabelas puramente operacionais (`account_members`) podem usar exclusão física. |
+| NFR5 | Versões publicadas (`standard_versions`, `checklist_versions`) e registros transacionais de resposta (`inspection_responses`, `response_photos`) são imutáveis após criados — append-only, sem `updated_at`. |
 
 ## Fora de escopo no v1 (decisões já tomadas, ver memória do projeto)
 
