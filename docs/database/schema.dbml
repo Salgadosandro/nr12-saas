@@ -55,13 +55,13 @@ Table standard_sections {
 Table standard_items {
   id uuid [pk]
   standard_section_id uuid [not null, ref: > standard_sections.id]
-  standard_version_id uuid [not null, ref: > standard_versions.id, note: 'denormalizado: FK composta + unique number/versao']
   parent_item_id uuid [null, ref: > standard_items.id, note: 'sub-item aninhado 12.1.1.1']
   number varchar [not null, note: '12.1.1']
   text text [not null]
   position int [not null]
   created_at timestamptz [not null]
-  indexes { (standard_version_id, number) [unique] }
+  indexes { (standard_section_id, number) [unique] }
+  Note: 'Filho de section. Versao chega por item -> section -> version (sem atalho direto).'
 }
 
 Table machine_types {
@@ -126,12 +126,12 @@ Table checklist_template_items {
   id uuid [pk]
   account_id uuid [not null, ref: > accounts.id]
   checklist_template_version_id uuid [not null, ref: > checklist_template_versions.id]
-  standard_version_id uuid [not null, ref: > standard_versions.id, note: 'denormalizado p/ FK composta de integridade']
+  standard_version_id uuid [not null, ref: > standard_versions.id, note: 'a versao usada pelo template']
   standard_item_id uuid [not null, ref: > standard_items.id]
   position int [null]
   created_at timestamptz [not null]
   indexes { (checklist_template_version_id, standard_item_id) [unique] }
-  Note: 'A selecao: so itens incluidos. Desmarcado = ausencia.'
+  Note: 'A selecao: so itens incluidos. Integridade item->section->version via trigger.'
 }
 
 // =========================================================

@@ -87,15 +87,14 @@ A cláusula da norma. Suporta aninhamento via `parent_item_id`.
 | Coluna | Tipo | Null? | Default | Descrição |
 |---|---|---|---|---|
 | `id` | uuid | não | `gen_random_uuid()` | PK |
-| `standard_section_id` | uuid | não | — | FK → `standard_sections.id` |
-| `standard_version_id` | uuid | não | — | **Denormalizado** (filosofia do [ADR 0002](../adr/0002-postgres-supabase-multi-tenant-rls.md)): permite `unique (standard_version_id, number)` e consultar todos os itens da versão sem join |
+| `standard_section_id` | uuid | não | — | FK → `standard_sections.id` (único pai — a versão chega via seção) |
 | `parent_item_id` | uuid | sim | `null` | FK → `standard_items.id` (sub-item aninhado, ex. 12.1.1.1) |
 | `number` | text | não | — | Ex. `12.1.1` |
 | `text` | text | não | — | Texto da cláusula |
 | `position` | integer | não | — | Ordem dentro da seção/pai |
 | `created_at` | timestamptz | não | `now()` | — |
 
-`unique (standard_version_id, number)`.
+`unique (standard_section_id, number)`. Sem FK direta pra `standard_versions` — a hierarquia é estritamente `version → section → item`.
 
 ## `machine_types`
 | Coluna | Tipo | Null? | Default | Descrição |
@@ -179,11 +178,13 @@ todos os seus itens (toggle de módulo é açúcar de UI).
 Constraints:
 - `unique (checklist_version_id, standard_item_id)` — um item entra uma
   vez por versão.
-- **FK composta** `(standard_version_id, standard_item_id)` →
-  `standard_items (standard_version_id, id)`: garante a nível de banco
-  que só se inclui item da **mesma** versão da norma que o checklist usa
-  — não confia na aplicação. O texto da cláusula vem congelado de graça,
-  porque a `standard_version` referenciada é imutável.
+- **Integridade entre versões via trigger**: garante que o
+  `standard_item_id` incluído pertence à mesma `standard_version_id` que
+  o checklist usa, andando `item → section → version`. (Era uma FK
+  composta quando `standard_items` carregava `standard_version_id`
+  denormalizado; como removemos esse atalho para manter a hierarquia
+  limpa, a checagem passou a ser por trigger.) O texto da cláusula vem
+  congelado de graça, porque a `standard_version` referenciada é imutável.
 
 ---
 
