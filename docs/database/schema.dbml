@@ -23,32 +23,22 @@ Table standards {
   Note: 'A norma. Sem soft delete (revogação é no nível da versão).'
 }
 
-Table standard_amendments {
-  id uuid [pk]
-  standard_id uuid [not null, ref: > standards.id]
-  type varchar [not null, note: 'publication | amendment']
-  number varchar [not null, note: 'n.º 916']
-  issuing_body varchar [not null, note: 'MTb, SSST, SIT, MTE, MTPS, SEPRT, MTP']
-  signed_date date [not null]
-  dou_date date [null, note: 'Diário Oficial da União']
-  url varchar [null]
-  position int [null]
-  created_at timestamptz [not null]
-  Note: 'Portarias: a Publicacao original + cada Alteracao/Atualizacao.'
-}
-
 Table standard_versions {
   id uuid [pk]
   standard_id uuid [not null, ref: > standards.id]
-  defining_amendment_id uuid [null, ref: > standard_amendments.id]
-  version_label varchar [not null, note: 'Redacao 916/2019, consolidada ate 4.219/2022']
+  version_label varchar [not null, note: 'Redacao 916/2019']
+  source_portaria_number varchar [null, note: 'SEPRT n.º 916 - portaria de origem']
+  source_issuing_body varchar [null, note: 'SEPRT']
+  source_signed_date date [null, note: '30/07/2019']
+  source_dou_date date [null, note: 'D.O.U. 31/07/2019']
+  source_url varchar [null]
   effective_from date [null]
   effective_until date [null, note: 'null = vigente']
   status varchar [not null, note: 'draft | published | revoked. Imutavel apos published.']
   published_at timestamptz [null]
   created_at timestamptz [not null]
   indexes { (standard_id, version_label) [unique] }
-  Note: 'Versao estruturada (redacao consolidada) sobre a qual se montam templates.'
+  Note: 'Versao estruturada (redacao consolidada). Identifica a portaria de origem nos proprios campos (sem tabela de historico).'
 }
 
 Table standard_sections {
@@ -417,7 +407,6 @@ Table suggestion_events {
 
 TableGroup referencia {
   standards
-  standard_amendments
   standard_versions
   standard_sections
   standard_items

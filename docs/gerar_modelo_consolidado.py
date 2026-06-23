@@ -123,8 +123,7 @@ story.append(hr())
 story.append(P("Camada de referência (global — sem account_id, sem RLS de tenant)", "h2"))
 story.append(bullets([
     "<b>standards</b> — a norma (NR-12, NR-10…).",
-    "<b>standard_amendments</b> — as portarias (publicação + alterações), com nº, órgão emissor e D.O.U.",
-    "<b>standard_versions</b> — a redação consolidada estruturada (imutável após publicada).",
+    "<b>standard_versions</b> — a redação consolidada estruturada (imutável após publicada), com a portaria de origem (nº, órgão, D.O.U.) embutida.",
     "<b>standard_sections</b> — módulo/anexo (12.1, Anexo I).",
     "<b>standard_items</b> — a cláusula (12.1.1), com sub-itens aninhados.",
     "<b>machine_types</b> → <b>machine_models</b> — hierarquia: tipo (torno) → modelo (Siemens 5123).",

@@ -5,8 +5,8 @@ Identificadores em inglês; conteúdo de dados em português (domínio NR-12).
 > **Status da revisão de propriedades (fase atual).** Estamos
 > redocumentando o dicionário entidade por entidade, com revisão
 > deliberada de cada propriedade.
-> - ✅ **Norma** (`standards`, `standard_amendments`, `standard_versions`,
->   `standard_sections`, `standard_items`) — confirmada.
+> - ✅ **Norma** (`standards`, `standard_versions` com a portaria de origem
+>   embutida, `standard_sections`, `standard_items`) — confirmada.
 > - ✅ **Checklist** (`checklists`, `checklist_versions`,
 >   `checklist_version_items`) — confirmada (checklist agnóstico de máquina).
 > - ⏳ Demais tabelas abaixo: ainda no rascunho do remodel anterior e
@@ -41,39 +41,23 @@ acontece no nível da versão/portaria).
 | `description` | text | sim | `null` | Contexto opcional |
 | `created_at` | timestamptz | não | `now()` | — |
 
-## `standard_amendments`
-As portarias da norma: a *Publicação* original + cada *Alteração/
-Atualização*. É o ramo legal/proveniência — dá rastreabilidade pra
-citação no laudo, sem custo de reestruturar os itens a cada alteração.
-
-| Coluna | Tipo | Null? | Default | Descrição |
-|---|---|---|---|---|
-| `id` | uuid | não | `gen_random_uuid()` | PK |
-| `standard_id` | uuid | não | — | FK → `standards.id` |
-| `type` | text | não | — | `check in ('publication','amendment')` — "Publicação" vs "Alteração/Atualização" |
-| `number` | text | não | — | Ex. `n.º 916` |
-| `issuing_body` | text | não | — | Órgão emissor (muda no tempo): `MTb`, `SSST`, `SIT`, `MTE`, `MTPS`, `SEPRT`, `MTP`… |
-| `signed_date` | date | não | — | Data da portaria (ex. 30/07/2019) |
-| `dou_date` | date | sim | `null` | Data de publicação no D.O.U. (ex. 31/07/2019) |
-| `url` | text | sim | `null` | Link pro texto oficial |
-| `position` | integer | sim | — | Ordem cronológica na lista |
-| `created_at` | timestamptz | não | `now()` | — |
-
-A *Publicação* original (Portaria MTb 3.214/1978) é `type = 'publication'`;
-todo o resto é `'amendment'`.
-
 ## `standard_versions`
 Versão **estruturada** (a redação consolidada) sobre a qual se montam
-checklists. **Imutável após `published`.** Mantemos a versão vigente +
-o histórico de `standard_amendments`; cria-se versão nova só em
+checklists. **Imutável após `published`.** Identifica a **portaria de
+origem** nos próprios campos (não guardamos o histórico completo de
+portarias — só a que deu a redação). Cria-se versão nova só em
 consolidações relevantes (ver [ADR 0004](../adr/0004-immutable-versioning-and-freeze.md)).
 
 | Coluna | Tipo | Null? | Default | Descrição |
 |---|---|---|---|---|
 | `id` | uuid | não | `gen_random_uuid()` | PK |
 | `standard_id` | uuid | não | — | FK → `standards.id` |
-| `defining_amendment_id` | uuid | sim | `null` | FK → `standard_amendments.id` — a portaria que deu esta redação (ex. 916/2019) |
-| `version_label` | text | não | — | Etiqueta da redação, ex. "Redação 916/2019, consolidada até 4.219/2022" |
+| `version_label` | text | não | — | Etiqueta da redação, ex. "Redação 916/2019" |
+| `source_portaria_number` | text | sim | `null` | Portaria que deu a redação, ex. `SEPRT n.º 916` |
+| `source_issuing_body` | text | sim | `null` | Órgão emissor da portaria, ex. `SEPRT` |
+| `source_signed_date` | date | sim | `null` | Data da portaria (ex. 30/07/2019) |
+| `source_dou_date` | date | sim | `null` | Data no D.O.U. (ex. 31/07/2019) |
+| `source_url` | text | sim | `null` | Link pro texto oficial |
 | `effective_from` | date | sim | — | Início de vigência |
 | `effective_until` | date | sim | `null` | Fim de vigência (null = vigente) — facilita "qual versão valia na data da inspeção" |
 | `status` | text | não | `'draft'` | `check in ('draft','published','revoked')` |
