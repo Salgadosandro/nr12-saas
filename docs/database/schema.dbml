@@ -1,0 +1,466 @@
+// =============================================================
+// NR-12 SaaS — Modelo de dados (DBML para dbdiagram.io)
+// Fase 1 = entrega (engenheiro).  Fase 2 = marketplace + analytics/KB.
+// Identificadores em inglês; conteúdo de dados em português (NR-12).
+// Gerado durante a fase de modelagem conceitual/propriedades.
+// =============================================================
+
+Project nr12_saas {
+  database_type: 'PostgreSQL'
+  Note: 'SaaS de inspeção NR-12. Multi-tenant via RLS (account_id). Itens marcados [FASE 2] não entram no v1.'
+}
+
+// =========================================================
+// CAMADA 1 — REFERÊNCIA (global: sem account_id, sem RLS de tenant)
+// =========================================================
+
+Table standards {
+  id uuid [pk]
+  code varchar [not null, unique, note: 'NR-12, NR-10']
+  title varchar [not null]
+  description varchar [null]
+  created_at timestamptz [not null]
+  Note: 'A norma. Sem soft delete (revogação é no nível da versão).'
+}
+
+Table standard_amendments {
+  id uuid [pk]
+  standard_id uuid [not null, ref: > standards.id]
+  type varchar [not null, note: 'publication | amendment']
+  number varchar [not null, note: 'n.º 916']
+  issuing_body varchar [not null, note: 'MTb, SSST, SIT, MTE, MTPS, SEPRT, MTP']
+  signed_date date [not null]
+  dou_date date [null, note: 'Diário Oficial da União']
+  url varchar [null]
+  position int [null]
+  created_at timestamptz [not null]
+  Note: 'Portarias: a Publicacao original + cada Alteracao/Atualizacao.'
+}
+
+Table standard_versions {
+  id uuid [pk]
+  standard_id uuid [not null, ref: > standards.id]
+  defining_amendment_id uuid [null, ref: > standard_amendments.id]
+  version_label varchar [not null, note: 'Redacao 916/2019, consolidada ate 4.219/2022']
+  effective_from date [null]
+  effective_until date [null, note: 'null = vigente']
+  status varchar [not null, note: 'draft | published | revoked. Imutavel apos published.']
+  published_at timestamptz [null]
+  created_at timestamptz [not null]
+  indexes { (standard_id, version_label) [unique] }
+  Note: 'Versao estruturada (redacao consolidada) sobre a qual se montam templates.'
+}
+
+Table standard_sections {
+  id uuid [pk]
+  standard_version_id uuid [not null, ref: > standard_versions.id]
+  section_type varchar [not null, note: 'module | annex']
+  code varchar [not null, note: '12.1, Anexo I']
+  title varchar [not null]
+  position int [not null]
+  created_at timestamptz [not null]
+  indexes { (standard_version_id, code) [unique] }
+}
+
+Table standard_items {
+  id uuid [pk]
+  standard_section_id uuid [not null, ref: > standard_sections.id]
+  standard_version_id uuid [not null, ref: > standard_versions.id, note: 'denormalizado: FK composta + unique number/versao']
+  parent_item_id uuid [null, ref: > standard_items.id, note: 'sub-item aninhado 12.1.1.1']
+  number varchar [not null, note: '12.1.1']
+  text text [not null]
+  position int [not null]
+  created_at timestamptz [not null]
+  indexes { (standard_version_id, number) [unique] }
+}
+
+Table machine_types {
+  id uuid [pk]
+  name varchar [not null, unique, note: 'Torno mecanico, Prensa']
+  created_at timestamptz [not null]
+}
+
+Table machine_models {
+  id uuid [pk]
+  machine_type_id uuid [not null, ref: > machine_types.id]
+  manufacturer varchar [not null, note: 'Siemens, WEG']
+  model_code varchar [not null, note: '5123']
+  created_at timestamptz [not null]
+  indexes { (machine_type_id, manufacturer, model_code) [unique] }
+  Note: 'Nivel intermediario da hierarquia. DECISAO ABERTA: catalogo global vs por-tenant. Ano fica na unidade (machines.manufacture_year).'
+}
+
+Table location_types {
+  id uuid [pk]
+  name varchar [not null, unique, note: 'Oficina, Cozinha, Laboratorio']
+  created_at timestamptz [not null]
+}
+
+Table risk_matrix_rules {
+  probability varchar [not null, note: 'low | medium | high']
+  severity varchar [not null, note: 'minor | moderate | major']
+  risk_level varchar [not null, note: 'low | medium | high | critical']
+  indexes { (probability, severity) [pk] }
+  Note: 'Matriz como dado (nao codigo). 9 linhas (3x3) seedadas.'
+}
+
+// =========================================================
+// CHECKLIST TEMPLATES (tenant) — molde reutilizavel
+// =========================================================
+
+Table checklist_templates {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  standard_version_id uuid [not null, ref: > standard_versions.id]
+  name varchar [not null]
+  description varchar [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz [null]
+  Note: 'Agnostico de maquina (decisao do Sandro): aplicabilidade e julgamento na inspecao.'
+}
+
+Table checklist_template_versions {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  checklist_template_id uuid [not null, ref: > checklist_templates.id]
+  version_number int [not null]
+  status varchar [not null, note: 'draft | published. Imutavel apos published.']
+  published_at timestamptz [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [null, note: 'so vale enquanto draft']
+  indexes { (checklist_template_id, version_number) [unique] }
+}
+
+Table checklist_template_items {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  checklist_template_version_id uuid [not null, ref: > checklist_template_versions.id]
+  standard_version_id uuid [not null, ref: > standard_versions.id, note: 'denormalizado p/ FK composta de integridade']
+  standard_item_id uuid [not null, ref: > standard_items.id]
+  position int [null]
+  created_at timestamptz [not null]
+  indexes { (checklist_template_version_id, standard_item_id) [unique] }
+  Note: 'A selecao: so itens incluidos. Desmarcado = ausencia.'
+}
+
+// =========================================================
+// CAMADA 2 — CADASTRO (tenant)
+// =========================================================
+
+Table accounts {
+  id uuid [pk]
+  type varchar [not null, note: 'engineer | company [FASE 2]. Default engineer.']
+  name varchar [not null]
+  default_validity_months int [not null, note: 'default 12, >0']
+  data_sharing_consent boolean [not null, note: '[FASE 2] autoriza dados anonimizados na base global; gateia acesso as sugestoes']
+  created_at timestamptz [not null]
+}
+
+Table account_members {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  user_id uuid [not null, note: 'auth.users (Supabase Auth)']
+  role varchar [not null, note: 'owner (v1)']
+  created_at timestamptz [not null]
+  indexes { (account_id, user_id) [unique] }
+}
+
+Table clients {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id, note: 'engenheiro que gerencia (RLS)']
+  linked_account_id uuid [null, ref: > accounts.id, note: '[FASE 2] empresa que reivindica o registro']
+  name varchar [not null]
+  cnpj varchar [null, note: 'check (null ou 14 digitos)']
+  contact_name varchar [null]
+  contact_email varchar [null]
+  contact_phone varchar [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz [null]
+  Note: 'Empresa inspecionada (real ou simbolica).'
+}
+
+Table locations {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  client_id uuid [not null, ref: > clients.id]
+  location_type_id uuid [null, ref: > location_types.id]
+  name varchar [not null, note: 'Oficina 2 - unidade Sorocaba']
+  address varchar [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz [null]
+  Note: 'Local de inspecao, filho do cliente. Contem as maquinas.'
+}
+
+Table machines {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  machine_model_id uuid [not null, ref: > machine_models.id, note: 'tipo vem via model']
+  location_id uuid [not null, ref: > locations.id, note: 'cliente vem via location']
+  tag varchar [not null, note: 'Prensa 02']
+  serial_number varchar [null]
+  manufacture_year int [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz [null]
+  Note: 'Unidade fisica (instancia). Hierarquia: machine_type -> machine_model -> machine.'
+}
+
+// =========================================================
+// PESSOAS / RESPONSABILIDADE TECNICA (tenant)
+// =========================================================
+
+Table professionals {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  member_id uuid [null, ref: > account_members.id, note: 'opcional: usuario ligado']
+  full_name varchar [not null]
+  crea varchar [null, note: 'registro profissional']
+  title varchar [null]
+  created_at timestamptz [not null]
+  Note: 'Responsavel tecnico / pode ser inspetor de campo.'
+}
+
+Table arts {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  professional_id uuid [not null, ref: > professionals.id]
+  number varchar [not null]
+  issued_at date [null]
+  pdf_path varchar [null]
+  created_at timestamptz [not null]
+  Note: 'Anotacao de Responsabilidade Tecnica. 1 ART pode cobrir N inspecoes (decisao tentativa).'
+}
+
+// =========================================================
+// CAMADA 3 — TRANSACIONAL (tenant)
+// =========================================================
+
+Table inspections {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  client_id uuid [not null, ref: > clients.id]
+  responsible_professional_id uuid [null, ref: > professionals.id]
+  art_id uuid [null, ref: > arts.id]
+  status varchar [not null, note: 'in_field | completed']
+  performed_on date [null]
+  notes text [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz [null]
+  Note: 'Servico de um engenheiro. Escopo de 1..N maquinas (via inspection_scope).'
+}
+
+Table inspection_scope {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  inspection_id uuid [not null, ref: > inspections.id]
+  machine_id uuid [not null, ref: > machines.id]
+  created_at timestamptz [not null]
+  indexes { (inspection_id, machine_id) [unique] }
+  Note: 'Maquinas no escopo da inspecao (escopo planejado/contratado).'
+}
+
+Table checklists {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  inspection_scope_id uuid [not null, ref: > inspection_scope.id, note: 'da maquina + inspecao']
+  valid_until date [null, note: 'validade POR MAQUINA']
+  status varchar [null, note: 'in_progress | completed']
+  raw_whatsapp_payload json [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Instancia (1 maquina). NAO referencia template_version: liga-se ao conteudo via answers -> checklist_template_items. 1 scope pode ter N checklists (ex: NR-12 + NR-10).'
+}
+
+Table answers {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  checklist_id uuid [not null, ref: > checklists.id]
+  checklist_template_item_id uuid [not null, ref: > checklist_template_items.id, note: 'o item filho do template (imutavel)']
+  status varchar [not null, note: 'compliant | non_compliant | not_applicable']
+  justification text [null, note: 'obrigatoria se non_compliant']
+  probability varchar [null, note: 'se non_compliant']
+  severity varchar [null, note: 'se non_compliant']
+  risk_level varchar [null, note: 'lookup risk_matrix_rules se non_compliant']
+  measured_value decimal [null, note: 'opcional (medicao)']
+  measured_unit varchar [null]
+  created_at timestamptz [not null]
+  indexes { (checklist_id, checklist_template_item_id) [unique] }
+  Note: 'Resposta por item. CHECK: non_compliant => justification+probability+severity+risk_level NOT NULL.'
+}
+
+Table answer_photos {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  answer_id uuid [not null, ref: > answers.id]
+  storage_path varchar [not null]
+  position int [not null, note: 'check in (1,2,3)']
+  created_at timestamptz [not null]
+  indexes { (answer_id, position) [unique] }
+  Note: 'Ate 3 fotos por nao-conformidade.'
+}
+
+Table reports {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  inspection_id uuid [null, ref: > inspections.id, note: 'DECISAO ABERTA: 1:1 com inspecao vs consolida N']
+  client_id uuid [not null, ref: > clients.id]
+  report_number varchar [null]
+  issued_at date [null]
+  status varchar [not null, note: 'draft | in_review | final']
+  ai_generated_text text [null]
+  final_text text [null]
+  pdf_path varchar [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz [null]
+  Note: 'Laudo. Co-propriedade: empresa (objeto) + engenheiro (autor/ART).'
+}
+
+Table action_plans {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  answer_id uuid [not null, ref: > answers.id, note: 'resposta non_compliant']
+  description text [not null]
+  responsible_name varchar [not null, note: 'texto livre']
+  due_date date [not null]
+  status varchar [null, note: 'aberto | verificado (eficacia/reinspecao - a definir)']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+// =========================================================
+// [FASE 2] MARKETPLACE
+// =========================================================
+
+Table listings {
+  id uuid [pk]
+  company_account_id uuid [not null, ref: > accounts.id]
+  title varchar [not null]
+  scope_description text [null]
+  budget decimal [null]
+  deadline date [null]
+  status varchar [not null, note: 'open | closed']
+  created_at timestamptz [not null]
+  Note: '[FASE 2] anuncio de inspecao publicado pela empresa.'
+}
+
+Table proposals {
+  id uuid [pk]
+  listing_id uuid [not null, ref: > listings.id]
+  engineer_account_id uuid [not null, ref: > accounts.id]
+  price decimal [not null]
+  message text [null]
+  status varchar [not null, note: 'submitted | accepted | rejected']
+  created_at timestamptz [not null]
+  Note: '[FASE 2] lance do engenheiro sobre um anuncio.'
+}
+
+Table engagements {
+  id uuid [pk]
+  listing_id uuid [null, ref: > listings.id]
+  proposal_id uuid [null, ref: > proposals.id]
+  company_account_id uuid [not null, ref: > accounts.id]
+  engineer_account_id uuid [not null, ref: > accounts.id]
+  inspection_id uuid [null, ref: > inspections.id, note: 'produz a entrega']
+  status varchar [not null]
+  created_at timestamptz [not null]
+  Note: '[FASE 2] contratacao aceita: liga empresa + engenheiro + escopo.'
+}
+
+// =========================================================
+// [FASE 2] ANALYTICS / BASE DE CONHECIMENTO
+// =========================================================
+
+Table knowledge_entries {
+  id uuid [pk]
+  standard_item_id uuid [null, ref: > standard_items.id]
+  machine_model_id uuid [null, ref: > machine_models.id]
+  generic_text text [not null, note: 'texto generalizado/anonimizado']
+  embedding vector [null, note: 'pgvector — busca semantica']
+  corrective_text text [null]
+  source_count int [not null, note: 'k-anonimato: so exibe se >= N']
+  created_at timestamptz [not null]
+  Note: '[FASE 2] base global anonimizada. Alimentada por dados consentidos.'
+}
+
+Table frequency_aggregates {
+  id uuid [pk]
+  machine_model_id uuid [null, ref: > machine_models.id]
+  machine_type_id uuid [null, ref: > machine_types.id, note: 'fallback quando modelo tem pouca amostra']
+  standard_item_id uuid [not null, ref: > standard_items.id]
+  evaluated_count int [not null]
+  non_compliant_count int [not null]
+  wilson_lower decimal [null, note: 'estimativa com IC']
+  flames int [null, note: '0..5 foguinhos']
+  window_label varchar [null, note: 'janela de recencia']
+  updated_at timestamptz [not null]
+  Note: '[FASE 2] derivado/recomputado. Frequencia = nao-conforme / avaliado, por coorte.'
+}
+
+Table suggestion_events {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id]
+  answer_id uuid [null, ref: > answers.id]
+  knowledge_entry_id uuid [null, ref: > knowledge_entries.id]
+  outcome varchar [not null, note: 'accepted | rejected']
+  created_at timestamptz [not null]
+  Note: '[FASE 2] feedback aceitar/rejeitar -> melhora ranking.'
+}
+
+// =========================================================
+// AGRUPAMENTOS
+// =========================================================
+
+TableGroup referencia {
+  standards
+  standard_amendments
+  standard_versions
+  standard_sections
+  standard_items
+  machine_types
+  machine_models
+  location_types
+  risk_matrix_rules
+}
+
+TableGroup checklist_templates_grp {
+  checklist_templates
+  checklist_template_versions
+  checklist_template_items
+}
+
+TableGroup cadastro {
+  accounts
+  account_members
+  clients
+  locations
+  machines
+  professionals
+  arts
+}
+
+TableGroup transacional {
+  inspections
+  inspection_scope
+  checklists
+  answers
+  answer_photos
+  reports
+  action_plans
+}
+
+TableGroup fase2_marketplace {
+  listings
+  proposals
+  engagements
+}
+
+TableGroup fase2_analytics {
+  knowledge_entries
+  frequency_aggregates
+  suggestion_events
+}
