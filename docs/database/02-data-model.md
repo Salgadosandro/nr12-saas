@@ -1,145 +1,98 @@
-# Modelo de Dados — Conceitual e Lógico
+# Modelo de Dados — Conceitual e Lógico (Base v1)
 
-> Identificadores do schema em **inglês** (decisão de 2026-06-19, ver
-> [`03-naming-conventions.md`](03-naming-conventions.md)). O **conteúdo**
-> dos dados (título da norma, texto das cláusulas, etc.) é em português,
-> pois é o domínio NR-12 brasileiro.
+> Fonte de verdade do schema: [`schema.dbml`](schema.dbml) (colável no
+> dbdiagram.io). Identificadores em inglês; conteúdo em português (NR-12).
+> A camada de **análise de dados** (foguinhos, base de conhecimento) e o
+> **marketplace** são de **fase posterior** — fora desta base.
 
-## O princípio organizador: três camadas
+## As quatro camadas
 
-As entidades vivem em três camadas com comportamentos diferentes. Saber
-em qual camada algo está responde quase tudo sobre como modelá-lo
-(é compartilhado? é versionado? é isolado por tenant?).
-
-| Camada | Comportamento | Isolamento |
+| Camada | Comportamento | `account_id`? |
 |---|---|---|
-| **1. Referência / Template** | Muda pouco, reutilizada por muitas inspeções, versionada e imutável | Global (lida por todos, escrita por admin) |
-| **2. Quem / O quê** | Cadastro do tenant | Tenant-scoped (RLS por `account_id`) |
-| **3. Transacional / Evento** | Cresce sem parar, imutável após registro | Tenant-scoped (RLS por `account_id`) |
+| **Referência** | Global, versionada, imutável | Não (global) |
+| **Formas de checklist** | Recortes da norma feitos pelo tenant | Só na raiz (`checklist_templates`) |
+| **Cadastro** | Quem/o quê do tenant | Só nas raízes |
+| **Transacional** | Os eventos (inspeção, respostas, laudo) | Derivado das raízes |
 
-A camada de referência é a "exceção de RLS" antecipada na
-[ADR 0002](../adr/0002-postgres-supabase-multi-tenant-rls.md): tabelas
-como `standards` e `risk_matrix_rules` não têm `account_id` porque são
-regra de domínio compartilhada, não dado de um cliente.
+**Tenancy normalizada:** `account_id` vive só nas raízes do tenant
+(`clients`, `checklist_templates`, `professionals`, `account_members`); o
+resto deriva pela cadeia de FKs (ver [ADR 0006](../adr/0006-normalized-tenancy.md)).
 
-## Camada 1 — Referência / Template
+## Os três níveis do checklist (conceito central)
 
-| Tabela | Papel |
-|---|---|
-| `standards` | A norma em si (NR-12, e futuramente NR-10, NR-13…). Modelado genérico de propósito. |
-| `standard_versions` | Versão da norma (revisões/portarias). **Imutável** após publicada. |
-| `standard_sections` | Módulo ou anexo (`section_type`): ex. módulo "12.1 Princípios gerais", "Anexo I". |
-| `standard_items` | A cláusula (ex. "12.1.1"). Auto-referência (`parent_item_id`) para sub-itens aninhados. |
-| `machine_types` | Prensa, torno, injetora… |
-| `location_types` | Oficina, cozinha, laboratório… |
-| `risk_matrix_rules` | Probabilidade × Severidade → Nível de risco (ver [ADR 0003](../adr/0003-data-driven-risk-matrix.md)). |
+- **Completo** = `standard_version` + todos os seus `standard_items` (a
+  norma inteira — o universo).
+- **Forma** = `checklist_template` (um recorte do universo, agrupado em
+  `checklist_template_sections` → `checklist_template_items`).
+- **Aplicado** = `checklists` (uma forma aplicada a uma máquina, com as
+  `answers`).
 
-O **"checklist geral"** não é uma tabela separada: ele *é* uma
-`standard_version` inteira, expandida em todos os seus `standard_items`.
-
-## Camada 2 — Quem / O quê (tenant-scoped)
-
-| Tabela | Papel |
-|---|---|
-| `accounts` | Tenant (consultoria/engenheiro assinante). Raiz de tudo. |
-| `account_members` | Usuários (Supabase Auth) vinculados a uma conta. |
-| `clients` | Empresa cliente da consultoria. |
-| `machines` | Máquina de um cliente; tem um `machine_type` e um `location_type`. |
-
-## Camada de Checklist (tenant-scoped — seleção sobre a norma)
-
-| Tabela | Papel |
-|---|---|
-| `checklists` | Checklist nomeado do tenant, construído sobre uma `standard_version`. |
-| `checklist_versions` | Versão imutável de um checklist (uma seleção publicada). |
-| `checklist_version_items` | **A seleção**: quais `standard_items` entram nesta versão (só os incluídos). |
-
-O cliente parte do checklist geral (todos os itens da norma) e
-**desmarca** módulos/itens; o resultado publicado é uma
-`checklist_version` com seu conjunto de `checklist_version_items`. Ver
-[ADR 0004](../adr/0004-immutable-versioning-and-freeze.md).
-
-## Camada 3 — Transacional (tenant-scoped)
-
-| Tabela | Papel |
-|---|---|
-| `inspections` | Evento de campo de **uma** máquina. Congela uma `checklist_version`. Tem `valid_until`. Pode pertencer a um laudo. |
-| `inspection_responses` | Uma resposta por item: `compliant / non_compliant / not_applicable` (+ justificativa e risco se não-conforme). |
-| `response_photos` | Até 3 fotos de uma resposta não-conforme (tabela-filha, ver [ADR 0005](../adr/0005-nonconformity-as-response-state.md)). |
-| `reports` | O laudo: **consolida várias inspeções**. Carrega texto da IA, texto final, PDF, e o ciclo `draft → in_review → final`. |
-| `action_plans` | Ação corretiva ligada a uma resposta não-conforme. |
-
-## ERD
+## ERD (base)
 
 ```mermaid
 erDiagram
-    STANDARDS ||--o{ STANDARD_VERSIONS : "tem versoes"
-    STANDARD_VERSIONS ||--o{ STANDARD_SECTIONS : "contem modulos/anexos"
-    STANDARD_SECTIONS ||--o{ STANDARD_ITEMS : "contem itens"
-    STANDARD_ITEMS ||--o{ STANDARD_ITEMS : "sub-itens (parent)"
+    STANDARDS ||--o{ STANDARD_VERSIONS : "versoes"
+    STANDARD_VERSIONS ||--o{ STANDARD_SECTIONS : "modulos/anexos"
+    STANDARD_SECTIONS ||--o{ STANDARD_ITEMS : "itens"
+    STANDARD_ITEMS ||--o{ STANDARD_ITEMS : "sub-itens"
 
-    STANDARD_VERSIONS ||--o{ CHECKLISTS : "base de"
-    CHECKLISTS ||--o{ CHECKLIST_VERSIONS : "versionado em"
-    CHECKLIST_VERSIONS ||--o{ CHECKLIST_VERSION_ITEMS : "seleciona"
-    STANDARD_ITEMS ||--o{ CHECKLIST_VERSION_ITEMS : "incluido em"
-    MACHINE_TYPES ||--o{ CHECKLISTS : "destinado a"
+    MACHINE_TYPES ||--o{ MACHINE_MODELS : "modelos"
 
-    ACCOUNTS ||--o{ ACCOUNT_MEMBERS : "tem"
+    CHECKLIST_TEMPLATES ||--o{ CHECKLIST_TEMPLATE_SECTIONS : "secoes"
+    CHECKLIST_TEMPLATE_SECTIONS ||--o{ CHECKLIST_TEMPLATE_ITEMS : "itens"
+    STANDARD_VERSIONS ||--o{ CHECKLIST_TEMPLATES : "base"
+    STANDARD_SECTIONS ||--o{ CHECKLIST_TEMPLATE_SECTIONS : "espelha"
+    STANDARD_ITEMS ||--o{ CHECKLIST_TEMPLATE_ITEMS : "seleciona"
+
+    ACCOUNTS ||--o{ ACCOUNT_MEMBERS : "membros"
     ACCOUNTS ||--o{ CLIENTS : "gerencia"
-    ACCOUNTS ||--o{ CHECKLISTS : "possui"
-    CLIENTS ||--o{ MACHINES : "possui"
-    MACHINE_TYPES ||--o{ MACHINES : "classifica"
-    LOCATION_TYPES ||--o{ MACHINES : "localiza"
+    ACCOUNTS ||--o{ CHECKLIST_TEMPLATES : "possui"
+    ACCOUNTS ||--o{ PROFESSIONALS : "tem"
+    CLIENTS ||--o{ LOCATIONS : "locais"
+    LOCATION_TYPES ||--o{ LOCATIONS : "tipo"
+    LOCATIONS ||--o{ MACHINES : "abriga"
+    MACHINE_MODELS ||--o{ MACHINES : "modelo"
+    PROFESSIONALS ||--o{ ARTS : "emite"
 
-    MACHINES ||--o{ INSPECTIONS : "historico de"
-    CHECKLIST_VERSIONS ||--o{ INSPECTIONS : "versao congelada"
-    REPORTS ||--o{ INSPECTIONS : "consolida"
+    CLIENTS ||--o{ INSPECTIONS : "para"
+    PROFESSIONALS ||--o{ INSPECTIONS : "responsavel"
+    ARTS ||--o{ INSPECTIONS : "ampara"
+    INSPECTIONS ||--o{ INSPECTION_SCOPE : "escopo (locais)"
+    LOCATIONS ||--o{ INSPECTION_SCOPE : "local"
+
+    MACHINES ||--o{ CHECKLISTS : "aplicado em"
+    CHECKLIST_TEMPLATES ||--o{ CHECKLISTS : "forma aplicada"
+    CHECKLISTS ||--o{ ANSWERS : "respostas"
+    CHECKLIST_TEMPLATE_ITEMS ||--o{ ANSWERS : "item"
+    ANSWERS ||--o{ ANSWER_PHOTOS : "ate 3 fotos"
+    ANSWERS ||--o{ ACTION_PLANS : "se nao-conforme"
     CLIENTS ||--o{ REPORTS : "emitido para"
-
-    INSPECTIONS ||--o{ INSPECTION_RESPONSES : "produz"
-    CHECKLIST_VERSION_ITEMS ||--o{ INSPECTION_RESPONSES : "respondido em"
-    INSPECTION_RESPONSES ||--o{ RESPONSE_PHOTOS : "ate 3 fotos"
-    INSPECTION_RESPONSES ||--o{ ACTION_PLANS : "se nao-conforme"
-    RISK_MATRIX_RULES ||--o{ INSPECTION_RESPONSES : "classifica"
+    INSPECTIONS ||--o{ REPORTS : "consolida (aberto)"
 ```
 
-## Dois eixos de versão (importante)
+## Decisões-chave da base
 
-Um checklist muda por **dois motivos independentes**, e os dois geram
-versões imutáveis:
+- **Norma versionada e imutável**; a portaria de origem fica embutida na
+  versão (sem tabela de histórico).
+- **Hierarquia de máquina** em 3 níveis: `machine_types → machine_models →
+  machines`. Ano de fabricação na unidade.
+- **Local de inspeção** (`locations`) entre cliente e máquina; o escopo da
+  inspeção é por **local**.
+- **Checklist = forma (molde) + aplicado (instância)**. Forma agnóstica de
+  máquina; aplicado liga forma + máquina.
+- **Não-conformidade não é entidade** — é uma `answer` com status
+  `non_compliant` (+ risco, fotos, plano de ação).
+- **Matriz de risco como dado** (`risk_matrix_rules`).
 
-1. **Versão da norma** (`standard_versions`) — mantida pelo sistema.
-   Quando a NR-12 é revisada, nasce uma versão nova.
-2. **Seleção do tenant** (`checklist_versions`) — o cliente desmarca
-   itens/módulos. Cada seleção publicada é uma versão.
+## Pontos em aberto (registrados no schema)
 
-A **inspeção congela uma `checklist_version`** (que por sua vez aponta
-para uma `standard_version`). Assim, mesmo que a norma ou o checklist
-mudem depois, o laudo permanece fiel ao que foi efetivamente
-inspecionado. Detalhe em [ADR 0004](../adr/0004-immutable-versioning-and-freeze.md).
+- Ligação `checklists` ↔ `inspections` (deixada para depois).
+- `reports` 1:1 com inspeção vs consolida várias.
+- `machine_models` global vs por-tenant.
 
-## Distinção crítica: "desmarcado" ≠ "não se aplica"
+## Fora desta base (fase posterior)
 
-- **Desmarcar** (na criação da `checklist_version`): o item **não
-  aparece** na inspeção — fora do escopo escolhido.
-- **`not_applicable`** (resposta em `inspection_responses`): o item
-  **aparece**, mas o inspetor marca N/A para aquele equipamento.
-
-São momentos e tabelas diferentes; confundi-los corromperia o laudo.
-
-## Ciclos de vida
-
-- **`inspections.status`**: `in_field → completed` (a coleta de campo
-  terminou?).
-- **`reports.status`**: `draft → in_review → final` (o documento foi
-  redigido, revisado e finalizado?). É aqui que vive o fluxo de revisão
-  do parecer da IA.
-- **Vencimento** não é um estado armazenado: é derivado comparando
-  `inspections.valid_until` com a data atual.
-
-## Não-conformidade não é uma entidade
-
-Uma não-conformidade é simplesmente uma `inspection_responses` com
-`status = 'non_compliant'`, que então carrega `justification`,
-`probability`, `severity`, `risk_level` e pode ter `response_photos` e
-`action_plans`. Ver [ADR 0005](../adr/0005-nonconformity-as-response-state.md).
+Camada de **análise de dados** — agregados de frequência ("foguinhos"),
+base de conhecimento com embeddings (pgvector) e sugestões — e a camada de
+**marketplace**. Serão adicionadas como camadas auxiliares depois que a
+base estiver de pé. Desenho preservado no histórico do Git.

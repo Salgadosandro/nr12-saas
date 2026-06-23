@@ -102,18 +102,19 @@ story.append(P("SaaS para gestão de inspeções de máquinas conforme a NR-12, 
 story.append(P("2. As três frentes", "h2"))
 story.append(tbl(
     ["Frente", "O que é", "Quando"],
-    [["Fase 1 — Entrega", "O engenheiro faz inspeções, gera laudos, "
-      "dashboard. É o que estamos modelando a fundo.", "Agora (v1)"],
-     ["Fase 2 — Marketplace", "Empresas publicam anúncios; engenheiros dão "
-      "propostas; contratação produz a entrega. Dois lados.", "Expansão"],
-     ["Fase 2 — Inteligência", "Foguinhos de frequência + base de "
-      "conhecimento (embeddings) com sugestões de correção.", "Expansão"]],
-    [3.2 * cm, 9.3 * cm, 3.5 * cm]))
+    [["Base v1 — Entrega", "Norma, formas de checklist, inspeção, respostas "
+      "e laudo. As 25 tabelas deste documento.", "Agora"],
+     ["Fase posterior — Análise", "Foguinhos de frequência + base de "
+      "conhecimento (embeddings) com sugestões de correção.", "Depois"],
+     ["Fase posterior — Marketplace", "Empresas publicam anúncios; "
+      "engenheiros dão propostas; contratação produz a entrega.", "Depois"]],
+    [3.4 * cm, 9.1 * cm, 3.5 * cm]))
 story.append(Spacer(1, 6))
-story.append(P("As entidades de Fase 2 já entram no modelo (marcadas) para não "
-               "precisar de migração disruptiva depois; só não são construídas "
-               "no v1. Ganchos baratos já incluídos: <i>accounts.type</i>, "
-               "<i>clients.linked_account_id</i>, <i>data_sharing_consent</i>.", "body"))
+story.append(P("A <b>base v1</b> tem 25 tabelas. As camadas de análise e "
+               "marketplace ficam para fase posterior — só ganchos baratos já "
+               "entram (<i>accounts.type</i>, <i>clients.linked_account_id</i>, "
+               "<i>data_sharing_consent</i>). Fonte de verdade do schema: "
+               "<b>docs/database/schema.dbml</b>.", "body"))
 story.append(PageBreak())
 
 # ---- camadas / entidades ----
@@ -131,16 +132,16 @@ story.append(bullets([
     "<b>risk_matrix_rules</b> — matriz Probabilidade × Severidade → nível (como dado).",
 ]))
 
-story.append(P("Checklist (templates — tenant)", "h2"))
+story.append(P("Formas de checklist (tenant)", "h2"))
 story.append(bullets([
-    "<b>checklist_templates</b> — molde nomeado, agnóstico de máquina, sobre uma versão da norma.",
-    "<b>checklist_template_versions</b> — versão imutável (uma seleção publicada).",
+    "<b>checklist_templates</b> — a forma (recorte da norma), agnóstica de máquina. Raiz do tenant.",
+    "<b>checklist_template_sections</b> — agrupa por módulo/anexo (espelha a seção da norma).",
     "<b>checklist_template_items</b> — a seleção: quais itens da norma entram.",
 ]))
 
 story.append(P("Cadastro (tenant)", "h2"))
 story.append(bullets([
-    "<b>accounts</b> — o tenant (engenheiro; e empresa na Fase 2). <b>account_members</b> — usuários.",
+    "<b>accounts</b> — o tenant. <b>account_members</b> — usuários.",
     "<b>clients</b> — empresa inspecionada (real ou simbólica).",
     "<b>locations</b> — local de inspeção, filho do cliente, contém as máquinas.",
     "<b>machines</b> — a unidade física (model + location + nº série + ano).",
@@ -149,20 +150,13 @@ story.append(bullets([
 
 story.append(P("Transacional (tenant)", "h2"))
 story.append(bullets([
-    "<b>inspections</b> — o serviço do engenheiro (1..N máquinas).",
-    "<b>inspection_scope</b> — as máquinas no escopo do serviço.",
-    "<b>checklists</b> — a instância por máquina (liga-se ao template pelas answers).",
+    "<b>inspections</b> — o serviço do engenheiro (1..N locais).",
+    "<b>inspection_scope</b> — os locais no escopo do serviço.",
+    "<b>checklists</b> — a forma aplicada a uma máquina.",
     "<b>answers</b> — resposta por item (conforme / não / N-A + justificativa + risco).",
     "<b>answer_photos</b> — até 3 fotos por não-conformidade.",
     "<b>reports</b> — o laudo (co-propriedade empresa + engenheiro).",
     "<b>action_plans</b> — ação corretiva ligada a uma resposta não-conforme.",
-]))
-
-story.append(P("Fase 2", "h2"))
-story.append(bullets([
-    "Marketplace: <b>listings</b> (anúncio), <b>proposals</b> (proposta), <b>engagements</b> (contratação).",
-    "Inteligência: <b>knowledge_entries</b> (base anonimizada + embeddings), "
-    "<b>frequency_aggregates</b> (foguinhos), <b>suggestion_events</b> (feedback).",
 ]))
 story.append(PageBreak())
 
@@ -170,20 +164,17 @@ story.append(PageBreak())
 story.append(P("4. Decisões já tomadas", "h1"))
 story.append(hr())
 story.append(bullets([
-    "<b>Multi-tenant via RLS</b> com <i>account_id</i> denormalizado em toda tabela tenant (políticas sem join).",
-    "<b>Norma versionada e imutável</b>; portarias/D.O.U. modeladas à parte (rastreabilidade legal).",
-    "<b>Checklist = template (molde) + instância</b> (padrão classe/objeto). Template é <b>agnóstico de máquina</b>.",
-    "<b>Checklist (instância) referencia inspection_scope</b>, não a inspeção; e liga-se ao conteúdo do template "
-    "pelos <b>itens filhos</b> (via answers), não pela versão — mantendo o congelamento (itens imutáveis).",
-    "<b>Inspeção = serviço</b> de um engenheiro, escopo de 1..N máquinas.",
+    "<b>Multi-tenant via RLS, normalizado</b>: <i>account_id</i> só nas raízes do tenant; filhas derivam (denormalização vira otimização posterior).",
+    "<b>Norma versionada e imutável</b>; a portaria de origem embutida na versão (sem tabela de histórico).",
+    "<b>Checklist = forma (molde) + aplicado (instância)</b>. A forma é <b>agnóstica de máquina</b>; agrupada em seções (template → section → item).",
+    "<b>Checklist aplicado</b> liga forma + máquina. A ligação com a inspeção ficou para depois (em aberto).",
+    "<b>Inspeção = serviço</b> de um engenheiro; escopo por <b>local</b>.",
     "<b>Não-conformidade não é entidade</b> — é uma answer com status não-conforme (+ risco, fotos, ação).",
     "<b>Matriz de risco como dado</b>; severidade por Probabilidade × Severidade.",
-    "<b>Hierarquia de máquina em 3 níveis</b>: tipo → modelo → unidade (habilita análise por granularidade).",
+    "<b>Hierarquia de máquina em 3 níveis</b>: tipo → modelo → unidade.",
     "<b>Validade do laudo</b> por máquina (no checklist), prazo configurável por conta.",
     "<b>Laudo precisa de empresa + engenheiro</b> (ART) — co-propriedade obrigatória.",
-    "<b>Foguinhos</b> com gate de amostra mínima + estimativa de Wilson + recência; <b>k-anonimato</b> na base global.",
-    "<b>Sugestões da IA</b>: sugerir, nunca aplicar; engenheiro aceita (responsabilidade técnica).",
-    "<b>Stripe/pagamentos</b> adiados; <b>marketplace</b> é Fase 2 com ganchos já no modelo.",
+    "<b>Camada de análise (foguinhos, base de conhecimento) e marketplace</b>: fase posterior, fora da base.",
 ]))
 story.append(PageBreak())
 

@@ -19,7 +19,7 @@ Toda decisão de arquitetura e todo desenho de dados fica documentado em
 
 | Marco | Status |
 |---|---|
-| 1. Banco de dados & modelagem | 🟡 Em andamento — documentação |
+| 1. Banco de dados & modelagem | 🟢 Base v1 modelada e documentada ([schema.dbml](docs/database/schema.dbml), 25 tabelas) |
 | 2. Backend / API REST | ⚪ Não iniciado |
 | 3. Automação WhatsApp (n8n) | ⚪ Não iniciado |
 | 4. Frontend / Dashboard | ⚪ Não iniciado |

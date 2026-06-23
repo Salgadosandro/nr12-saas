@@ -4,6 +4,13 @@ Documento de requisitos que o schema precisa suportar. Escrito antes
 de qualquer linha de SQL — o schema é uma consequência destes
 requisitos, não o contrário.
 
+> **Escopo da base v1.** O schema implementado é a **base** (25 tabelas,
+> ver [`schema.dbml`](schema.dbml) e [`04-data-dictionary.md`](04-data-dictionary.md)).
+> A camada de **análise de dados** (frequência/"foguinhos", base de
+> conhecimento com embeddings) e o **marketplace** são de **fase
+> posterior**. A multi-tenancy da base é **normalizada** — `account_id`
+> só nas raízes do tenant (ver [ADR 0006](../adr/0006-normalized-tenancy.md)).
+
 ## Requisitos funcionais
 
 ### Isolamento e cadastro

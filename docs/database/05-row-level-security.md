@@ -34,56 +34,59 @@ $$;
 - Retorna `setof uuid` porque no v1 um usuário só deveria pertencer a
   uma conta, mas a função já suporta múltiplas sem migration futura.
 
-## Quais tabelas são tenant-scoped vs referência
+## Tenancy normalizada (base v1)
 
-| Camada | Tabelas | RLS |
+A base usa **tenancy normalizada** (ver [ADR 0006](../adr/0006-normalized-tenancy.md)):
+`account_id` vive só nas **raízes** do tenant; as filhas derivam pela
+cadeia de FKs. Isso muda como as políticas são escritas: nas raízes é uma
+comparação direta; nas filhas é um `EXISTS`/join até a raiz.
+
+| Grupo | Tabelas | Política |
 |---|---|---|
-| **Referência (global)** | `standards`, `standard_versions`, `standard_sections`, `standard_items`, `machine_types`, `location_types`, `risk_matrix_rules` | Sem `account_id`. Leitura para qualquer autenticado; escrita só por role admin. |
-| **Tenant-scoped** | `accounts`*, `account_members`*, `clients`, `machines`, `checklists`, `checklist_versions`, `checklist_version_items`, `inspections`, `inspection_responses`, `response_photos`, `reports`, `action_plans` | `account_id` + as 4 políticas abaixo. |
+| **Referência (global)** | `standards`, `standard_versions`, `standard_sections`, `standard_items`, `machine_types`, `machine_models`, `location_types`, `risk_matrix_rules` | Sem `account_id`. Leitura para qualquer autenticado; escrita só por role admin. |
+| **Raízes do tenant** | `account_members`, `clients`, `checklist_templates`, `professionals` (e `accounts` via `id`) | Comparação direta em `account_id`. |
+| **Filhas (derivam)** | `locations`, `machines`, `checklist_template_sections`, `checklist_template_items`, `arts`, `inspections`, `inspection_scope`, `checklists`, `answers`, `answer_photos`, `reports`, `action_plans` | `EXISTS` subindo até a raiz. |
 
-\* `accounts` e `account_members` têm tratamento especial (ver no fim).
+## Padrão A — política numa raiz (comparação direta)
 
-## Padrão de política, por tabela tenant-scoped
-
-Toda tabela com `account_id` recebe exatamente este padrão — usando
-`inspections` como exemplo:
+Ex. `clients` (tem `account_id`):
 
 ```sql
-alter table inspections enable row level security;
+alter table clients enable row level security;
 
-create policy "select_own_account" on inspections
-  for select
-  using (account_id in (select current_account_ids()));
-
-create policy "insert_own_account" on inspections
-  for insert
-  with check (account_id in (select current_account_ids()));
-
-create policy "update_own_account" on inspections
-  for update
-  using (account_id in (select current_account_ids()))
-  with check (account_id in (select current_account_ids()));
-
-create policy "delete_own_account" on inspections
-  for delete
-  using (account_id in (select current_account_ids()));
+create policy "select_own_account" on clients
+  for select using (account_id in (select current_account_ids()));
+-- insert/update (with check)/delete seguem o mesmo molde.
 ```
 
-Mesmo padrão, mesmos 4 comandos, trocando só o nome da tabela — é
-exatamente por isso que `account_id` denormalizado (ADR 0002) compensa:
-nenhuma política aqui precisa de join.
+## Padrão B — política numa filha (join até a raiz)
 
-## `account_id` nunca vem do client
-
-Confiar no client (frontend/n8n) para enviar o `account_id` correto no
-insert seria reabrir a porta que o RLS existe pra fechar. Decisão:
-`account_id` é preenchido no banco via `default`, derivado da sessão
-autenticada — não é um campo que a aplicação escolhe livremente:
+Ex. `locations` (deriva via `client_id`):
 
 ```sql
-alter table inspections
-  alter column account_id set default (select current_account_ids() limit 1);
+alter table locations enable row level security;
+
+create policy "select_own_account" on locations
+  for select using (
+    exists (
+      select 1 from clients c
+      where c.id = locations.client_id
+        and c.account_id in (select current_account_ids())
+    )
+  );
+-- insert/update/delete: mesmo EXISTS no with check/using.
 ```
+
+Para tabelas mais fundas (ex. `answers`), o `EXISTS` sobe mais um nível
+(`answers → checklists → machines → locations → clients`). Verboso, porém
+seguro. Se a performance pesar em escala, a otimização é denormalizar
+`account_id` de volta nas tabelas quentes (ADR 0006).
+
+## A inserção numa filha valida o pai
+
+Numa filha, a política de `insert` (no `with check`) garante que o **pai
+referenciado pertence à sua conta** — é o mesmo `EXISTS`. Assim não dá pra
+pendurar um filho num pai de outro tenant.
 
 (Ajuste fino — ex: o que acontece se o usuário pertencer a mais de uma
 conta — é uma decisão de v1.1, já que no v1 cada usuário pertence a
