@@ -1,13 +1,31 @@
-# Dicionário de Dados — Base v1
+# Dicionário de Dados
 
 Identificadores em inglês; conteúdo de dados em português (domínio NR-12).
-A fonte de verdade do schema é [`schema.dbml`](schema.dbml) (colável no
-dbdiagram.io). Este documento descreve as **25 tabelas da base (v1)**.
+A **fonte de verdade exata** do schema é [`schema.dbml`](schema.dbml)
+(colável no dbdiagram.io); o estado de **segurança (RLS)** está em
+[`rls-status.md`](rls-status.md). Este documento descreve as tabelas
+(agora **26**, com `profiles`).
 
-> A camada auxiliar de **análise de dados** (foguinhos de frequência,
-> base de conhecimento com embeddings) e a de **marketplace** são de
-> **fase posterior** — não fazem parte desta base. O desenho delas está
-> preservado no histórico do Git.
+> A camada auxiliar de **análise de dados** (foguinhos, base de
+> conhecimento) e a de **marketplace** são de **fase posterior** —
+> preservadas no histórico do Git.
+
+> **Sincronizado com o banco (Supabase) — deltas desde a base v1:**
+> - **+ `profiles`** (1:1 com `auth.users`): `full_name`, `cpf` (11 díg.), `phone`.
+> - `accounts`: **− `default_validity_months`** (NR-12 não tem validade legal); **+ `cnpj`** (14 díg.) `unique`.
+> - `account_members`: **+** `unique(user_id)` (1 conta/usuário) e índice parcial `unique(account_id) where role='owner'` (1 dono/conta).
+> - `clients`: **+** `unique(account_id, cnpj)`.
+> - `locations`: **+ `code`** (`not null`) `unique(client_id, code)`; nome pode repetir.
+> - `machines`: **+ `code`** (`not null`) `unique(location_id, code)` e `unique(location_id, serial_number)`; `tag` é só rótulo.
+> - `professionals`: **+ `cpf`** (11 díg.); `unique(account_id, crea)`.
+> - `arts`: `unique(number)` global.
+> - `checklist_templates`: `unique(account_id, standard_version_id, name)`.
+> - `checklist_template_sections`/`_items`: **− `position`** (ordem vem da norma).
+> - `checklists`: **+ `inspection_id`** (`not null`, FK→inspections) e `unique(inspection_id, machine_id, checklist_template_id)`.
+> - **RLS habilitado em todas**; políticas em [`rls-status.md`](rls-status.md).
+>
+> O detalhamento por coluna abaixo cobre a base; para o estado **exato**
+> atual (colunas/constraints) consulte sempre o `schema.dbml`.
 
 ## Convenções
 

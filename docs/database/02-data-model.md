@@ -1,9 +1,16 @@
-# Modelo de Dados — Conceitual e Lógico (Base v1)
+# Modelo de Dados — Conceitual e Lógico
 
 > Fonte de verdade do schema: [`schema.dbml`](schema.dbml) (colável no
-> dbdiagram.io). Identificadores em inglês; conteúdo em português (NR-12).
+> dbdiagram.io). Segurança (RLS): [`rls-status.md`](rls-status.md).
+> Identificadores em inglês; conteúdo em português (NR-12).
 > A camada de **análise de dados** (foguinhos, base de conhecimento) e o
 > **marketplace** são de **fase posterior** — fora desta base.
+
+> **Sincronizado com o banco:** o modelo agora tem **26 tabelas** —
+> entrou `profiles` (1:1 com `auth.users`, dados da pessoa), e `checklists`
+> ganhou `inspection_id` (liga o checklist aplicado ao serviço/inspeção).
+> O ERD abaixo é conceitual; para colunas/constraints exatas use o
+> `schema.dbml`.
 
 ## As quatro camadas
 

@@ -1,19 +1,20 @@
 // =============================================================
-// NR-12 SaaS — Modelo BASE (v1) — DBML para dbdiagram.io
-// Tenancy normalizada: account_id so nas raizes do tenant.
-// Sem Fase 2, sem versionagem temporal de template.
+// NR-12 SaaS — Schema (sincronizado com o Supabase) — DBML
+// 26 tabelas. Tenancy normalizada: account_id so nas raizes.
+// RLS habilitado em TODAS; politicas: ver docs/database/rls-status.md
+// Sem Fase 2 (marketplace/analytics) — design no historico do Git.
 // =============================================================
 
 Project nr12_saas {
   database_type: 'PostgreSQL'
-  Note: 'SaaS de inspeção NR-12. Multi-tenant via RLS. Versão base (v1).'
+  Note: 'SaaS de inspeção NR-12. Multi-tenant via RLS. Estado refletindo o banco real.'
 }
 
-// ===== CAMADA 1 — REFERÊNCIA (global, sem account) =====
+// ===== CAMADA 1 — REFERENCIA (global) =====
 
 Table standards {
   id uuid [pk]
-  code varchar [not null, unique, note: 'NR-12, NR-10']
+  code varchar [not null, unique]
   title varchar [not null]
   description varchar [null]
   created_at timestamptz [not null]
@@ -22,26 +23,25 @@ Table standards {
 Table standard_versions {
   id uuid [pk]
   standard_id uuid [not null, ref: > standards.id]
-  version_label varchar [not null, note: 'Redacao 916/2019']
+  version_label varchar [not null]
   source_portaria_number varchar [null]
   source_issuing_body varchar [null]
   source_signed_date date [null]
   source_dou_date date [null]
   source_url varchar [null]
   effective_from date [null]
-  effective_until date [null, note: 'null = vigente']
+  effective_until date [null]
   status varchar [not null, note: 'draft | published | revoked']
   published_at timestamptz [null]
   created_at timestamptz [not null]
   indexes { (standard_id, version_label) [unique] }
-  Note: 'O checklist COMPLETO = esta versao + todos os seus items.'
 }
 
 Table standard_sections {
   id uuid [pk]
   standard_version_id uuid [not null, ref: > standard_versions.id]
   section_type varchar [not null, note: 'module | annex']
-  code varchar [not null, note: '12.1, Anexo I']
+  code varchar [not null]
   title varchar [not null]
   position int [not null]
   created_at timestamptz [not null]
@@ -51,8 +51,8 @@ Table standard_sections {
 Table standard_items {
   id uuid [pk]
   standard_section_id uuid [not null, ref: > standard_sections.id]
-  parent_item_id uuid [null, ref: > standard_items.id, note: 'sub-item aninhado']
-  number varchar [not null, note: '12.1.1']
+  parent_item_id uuid [null, ref: > standard_items.id]
+  number varchar [not null]
   text text [not null]
   position int [not null]
   created_at timestamptz [not null]
@@ -68,8 +68,8 @@ Table machine_types {
 Table machine_models {
   id uuid [pk]
   machine_type_id uuid [not null, ref: > machine_types.id]
-  manufacturer varchar [not null, note: 'Siemens, WEG']
-  model_code varchar [not null, note: '5123']
+  manufacturer varchar [not null]
+  model_code varchar [not null]
   created_at timestamptz [not null]
   indexes { (machine_type_id, manufacturer, model_code) [unique] }
 }
@@ -98,27 +98,26 @@ Table checklist_templates {
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   deleted_at timestamptz [null]
+  indexes { (account_id, standard_version_id, name) [unique] }
   Note: 'A "forma" (recorte da norma). Agnostico de maquina.'
 }
 
 Table checklist_template_sections {
   id uuid [pk]
   checklist_template_id uuid [not null, ref: > checklist_templates.id]
-  standard_section_id uuid [not null, ref: > standard_sections.id, note: 'qual modulo/anexo da norma']
-  position int [null]
+  standard_section_id uuid [not null, ref: > standard_sections.id]
   created_at timestamptz [not null]
   indexes { (checklist_template_id, standard_section_id) [unique] }
-  Note: 'Filha do template, pai dos items. Agrupa por modulo/anexo.'
+  Note: 'Ordem vem da norma (sem coluna position).'
 }
 
 Table checklist_template_items {
   id uuid [pk]
   checklist_template_section_id uuid [not null, ref: > checklist_template_sections.id]
   standard_item_id uuid [not null, ref: > standard_items.id]
-  position int [null]
   created_at timestamptz [not null]
   indexes { (checklist_template_section_id, standard_item_id) [unique] }
-  Note: 'account deriva via section -> template.'
+  Note: 'Ordem vem da norma (sem coluna position).'
 }
 
 // ===== CAMADA 2 — CADASTRO (tenant) =====
@@ -127,18 +126,24 @@ Table accounts {
   id uuid [pk]
   type varchar [not null, note: 'engineer | company (gancho fase 2)']
   name varchar [not null]
-  default_validity_months int [not null, note: 'default 12, >0']
+  cnpj varchar [null, note: 'check 14 digitos']
   data_sharing_consent boolean [not null, note: 'gancho fase 2']
   created_at timestamptz [not null]
+  indexes { (cnpj) [unique] }
+  Note: 'default_validity_months removido (NR-12 nao tem validade legal).'
 }
 
 Table account_members {
   id uuid [pk]
   account_id uuid [not null, ref: > accounts.id]
-  user_id uuid [not null, note: 'auth.users (Supabase)']
+  user_id uuid [not null, ref: > profiles.id, note: 'auth.users / profiles']
   role varchar [not null, note: 'owner (v1)']
   created_at timestamptz [not null]
-  indexes { (account_id, user_id) [unique] }
+  indexes {
+    (account_id, user_id) [unique]
+    (user_id) [unique, note: '1 conta por usuario (v1)']
+  }
+  Note: 'Indice parcial extra: unique(account_id) where role=owner -> 1 dono por conta.'
 }
 
 Table clients {
@@ -153,31 +158,47 @@ Table clients {
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   deleted_at timestamptz [null]
+  indexes { (account_id, cnpj) [unique] }
 }
 
 Table locations {
   id uuid [pk]
   client_id uuid [not null, ref: > clients.id]
   location_type_id uuid [null, ref: > location_types.id]
-  name varchar [not null]
+  name varchar [not null, note: 'pode repetir']
+  code varchar [not null]
   address varchar [null]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   deleted_at timestamptz [null]
-  Note: 'account deriva via client'
+  indexes { (client_id, code) [unique] }
 }
 
 Table machines {
   id uuid [pk]
-  machine_model_id uuid [not null, ref: > machine_models.id, note: 'tipo vem via model']
-  location_id uuid [not null, ref: > locations.id, note: 'cliente vem via location']
-  tag varchar [not null]
+  machine_model_id uuid [not null, ref: > machine_models.id]
+  location_id uuid [not null, ref: > locations.id]
+  tag varchar [not null, note: 'rotulo descritivo (pode repetir)']
+  code varchar [not null]
   serial_number varchar [null]
   manufacture_year int [null]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   deleted_at timestamptz [null]
-  Note: 'account deriva via location -> client'
+  indexes {
+    (location_id, code) [unique]
+    (location_id, serial_number) [unique]
+  }
+}
+
+Table profiles {
+  id uuid [pk, note: '= auth.users.id (PK e FK)']
+  full_name varchar [not null]
+  cpf varchar [null, note: 'check 11 digitos']
+  phone varchar [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Identidade da pessoa, 1:1 com auth.users. Politica: id = auth.uid().'
 }
 
 // ===== PESSOAS / RESPONSABILIDADE TECNICA (tenant) =====
@@ -188,18 +209,19 @@ Table professionals {
   member_id uuid [null, ref: > account_members.id]
   full_name varchar [not null]
   crea varchar [null]
+  cpf varchar [null, note: 'check 11 digitos']
   title varchar [null]
   created_at timestamptz [not null]
+  indexes { (account_id, crea) [unique] }
 }
 
 Table arts {
   id uuid [pk]
   professional_id uuid [not null, ref: > professionals.id]
-  number varchar [not null]
+  number varchar [not null, unique, note: 'ART unica nacionalmente']
   issued_at date [null]
   pdf_path varchar [null]
   created_at timestamptz [not null]
-  Note: 'account deriva via professional'
 }
 
 // ===== CAMADA 3 — TRANSACIONAL (tenant) =====
@@ -215,7 +237,7 @@ Table inspections {
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   deleted_at timestamptz [null]
-  Note: 'Servico do engenheiro, 1..N locais via scope. account deriva via client.'
+  Note: 'Servico do engenheiro, 1..N locais via inspection_scope.'
 }
 
 Table inspection_scope {
@@ -224,11 +246,11 @@ Table inspection_scope {
   location_id uuid [not null, ref: > locations.id]
   created_at timestamptz [not null]
   indexes { (inspection_id, location_id) [unique] }
-  Note: 'Escopo da inspecao = quais LOCAIS o servico cobre.'
 }
 
 Table checklists {
   id uuid [pk]
+  inspection_id uuid [not null, ref: > inspections.id, note: 'a qual servico pertence']
   machine_id uuid [not null, ref: > machines.id]
   checklist_template_id uuid [not null, ref: > checklist_templates.id, note: 'a forma aplicada']
   valid_until date [null, note: 'validade por maquina']
@@ -236,7 +258,8 @@ Table checklists {
   raw_whatsapp_payload json [null]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
-  Note: 'Checklist aplicado: forma X na maquina Y. Ligacao com inspecao: a definir (em aberto).'
+  indexes { (inspection_id, machine_id, checklist_template_id) [unique] }
+  Note: 'Checklist aplicado: forma X na maquina Y, na inspecao Z.'
 }
 
 Table answers {
@@ -244,10 +267,10 @@ Table answers {
   checklist_id uuid [not null, ref: > checklists.id]
   checklist_template_item_id uuid [not null, ref: > checklist_template_items.id]
   status varchar [not null, note: 'compliant | non_compliant | not_applicable']
-  justification text [null, note: 'obrigatoria se non_compliant']
+  justification text [null, note: 'obrigatoria se non_compliant (check)']
   probability varchar [null]
   severity varchar [null]
-  risk_level varchar [null, note: 'lookup risk_matrix_rules']
+  risk_level varchar [null]
   measured_value decimal [null]
   measured_unit varchar [null]
   created_at timestamptz [not null]
@@ -265,7 +288,7 @@ Table answer_photos {
 
 Table reports {
   id uuid [pk]
-  inspection_id uuid [null, ref: > inspections.id, note: 'DECISAO ABERTA: 1:1 vs consolida N']
+  inspection_id uuid [null, ref: > inspections.id, note: 'DECISAO ABERTA: 1:1 vs N']
   client_id uuid [not null, ref: > clients.id]
   report_number varchar [null]
   issued_at date [null]
@@ -276,7 +299,6 @@ Table reports {
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   deleted_at timestamptz [null]
-  Note: 'account deriva via client'
 }
 
 Table action_plans {
@@ -294,5 +316,5 @@ Table action_plans {
 
 TableGroup referencia { standards standard_versions standard_sections standard_items machine_types machine_models location_types risk_matrix_rules }
 TableGroup formas_checklist { checklist_templates checklist_template_sections checklist_template_items }
-TableGroup cadastro { accounts account_members clients locations machines professionals arts }
+TableGroup cadastro { accounts account_members clients locations machines profiles professionals arts }
 TableGroup transacional { inspections inspection_scope checklists answers answer_photos reports action_plans }
