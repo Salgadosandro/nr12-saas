@@ -20,14 +20,16 @@ O **backend está completo e validado**:
 - **Teste de isolamento multi-tenant passou** (cada conta só enxerga os
   próprios dados). Ver [`docs/database/rls-status.md`](docs/database/rls-status.md).
 
-A única lacuna do backend é **reprodutibilidade**: o SQL vive só no
-Supabase, não há migrations versionadas no repo. É o passo 0 abaixo.
+~~A única lacuna do backend é reprodutibilidade.~~ ✅ **Resolvida (2026-06-27):**
+o schema foi capturado como migrations versionadas em
+[`supabase/migrations/`](supabase/migrations/) (baseline via `pg_dump 17.6` +
+trigger do Auth à parte). O banco agora é reconstruível a partir do repo.
 
 ## Sequência
 
 | # | Peça | Estado | Por que está nesta posição |
 |---|---|---|---|
-| **0** | **Migrations versionadas** | ⚪ | Captura todo o SQL rodado no Supabase como `supabase/migrations/000N_*.sql`. Trava a reprodutibilidade — tudo abaixo constrói em cima do banco, então ele precisa ser reconstruível do zero. Barato e fecha o backend pra valer. |
+| **0** | **Migrations versionadas** | 🟢 | ✅ **Feito (2026-06-27).** Schema capturado em `supabase/migrations/` (baseline via `pg_dump 17.6` + trigger do Auth à parte). Backend agora reconstruível do zero a partir do repo. |
 | **1** | **Criação dos laudos** | ⚪ | **É o produto.** O laudo é o que o cliente paga pra receber. A tabela `reports` já prevê o ciclo `draft → in_review → final` com `ai_generated_text` / `final_text` / `pdf_path`. Trabalho: puxar não-conformidades + risco + planos de ação → IA gera rascunho → engenheiro revisa → gera PDF. Camada de lógica (FastAPI ou Edge Function) — zona de força do autor. |
 | **2** | **Frontend / Dashboard** | ⚪ | A interface pro engenheiro fazer CRUD de cadastro, revisar inspeções e editar/finalizar laudos. Next.js + React + TS + Tailwind + shadcn. Onde o autor mais quer aprender. |
 | **3** | **Stripe (assinatura)** | ⚪ | A catraca. Só faz sentido com o core (laudo + dashboard) já de pé. |
