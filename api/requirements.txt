@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+supabase
+pydantic-settings
+
+# adicionados mais adiante (passos da IA e do PDF):
+# anthropic
+# reportlab
