@@ -67,3 +67,41 @@ values
   ('12000000-0000-0000-0002-000000000011', '12000000-0000-0000-0000-000000000019', 'annex', 'ANEXO XI',   'Máquinas e implementos para uso agrícola e florestal', 29),
   ('12000000-0000-0000-0002-000000000012', '12000000-0000-0000-0000-000000000019', 'annex', 'ANEXO XII',  'Equipamentos de guindar para elevação de pessoas e realização de trabalho em altura', 30)
 on conflict do nothing;
+
+-- ===========================================================================
+-- standard_items
+-- (só requisitos: o módulo 12.1, puramente principiológico, não gera itens)
+-- ===========================================================================
+
+-- ===== Itens do módulo 12.2 — Arranjo físico e instalações =====
+-- section_id = 12000000-0000-0000-0001-000000000002
+insert into standard_items
+  (id, standard_section_id, parent_item_id, number, text, position)
+values
+  ('12020000-0000-0000-0000-000000000001', '12000000-0000-0000-0001-000000000002', null,
+   '12.2.1', 'Nos locais de instalação de máquinas e equipamentos, as áreas de circulação devem ser devidamente demarcadas em conformidade com as normas técnicas oficiais.', 1),
+  ('12020000-0000-0000-0000-000000000002', '12000000-0000-0000-0001-000000000002', '12020000-0000-0000-0000-000000000001',
+   '12.2.1.1', 'É permitida a demarcação das áreas de circulação utilizando-se marcos, balizas ou outros meios físicos.', 2),
+  ('12020000-0000-0000-0000-000000000003', '12000000-0000-0000-0001-000000000002', '12020000-0000-0000-0000-000000000001',
+   '12.2.1.2', 'As áreas de circulação devem ser mantidas desobstruídas.', 3),
+  ('12020000-0000-0000-0000-000000000004', '12000000-0000-0000-0001-000000000002', null,
+   '12.2.2', 'A distância mínima entre máquinas, em conformidade com suas características e aplicações, deve resguardar a segurança dos trabalhadores durante sua operação, manutenção, ajuste, limpeza e inspeção, e permitir a movimentação dos segmentos corporais, em face da natureza da tarefa.', 4),
+  ('12020000-0000-0000-0000-000000000005', '12000000-0000-0000-0001-000000000002', null,
+   '12.2.3', 'As áreas de circulação e armazenamento de materiais e os espaços em torno de máquinas devem ser projetados, dimensionados e mantidos de forma que os trabalhadores e os transportadores de materiais, mecanizados e manuais, movimentem-se com segurança.', 5),
+  ('12020000-0000-0000-0000-000000000006', '12000000-0000-0000-0001-000000000002', null,
+   '12.2.4', 'O piso do local de trabalho onde se instalam máquinas e equipamentos e das áreas de circulação deve ser resistente às cargas a que está sujeito e não oferecer riscos de acidentes.', 6),
+  ('12020000-0000-0000-0000-000000000007', '12000000-0000-0000-0001-000000000002', null,
+   '12.2.5', 'As ferramentas utilizadas no processo produtivo devem ser organizadas e armazenadas ou dispostas em locais específicos para essa finalidade.', 7),
+  ('12020000-0000-0000-0000-000000000008', '12000000-0000-0000-0001-000000000002', null,
+   '12.2.6', 'As máquinas estacionárias devem possuir medidas preventivas quanto à sua estabilidade, de modo que não basculem e não se desloquem intempestivamente por vibrações, choques, forças externas previsíveis, forças dinâmicas internas ou qualquer outro motivo acidental.', 8),
+  ('12020000-0000-0000-0000-000000000009', '12000000-0000-0000-0001-000000000002', '12020000-0000-0000-0000-000000000008',
+   '12.2.6.1', 'As máquinas estacionárias instaladas a partir da Portaria SIT n.º 197/2010 devem respeitar os requisitos necessários fornecidos pelos fabricantes ou, na falta desses, o projeto elaborado por profissional legalmente habilitado quanto à fundação, fixação, amortecimento e nivelamento.', 9),
+  ('12020000-0000-0000-0000-000000000010', '12000000-0000-0000-0001-000000000002', null,
+   '12.2.7', 'Nas máquinas móveis que possuem rodízios, pelo menos dois deles devem possuir travas.', 10),
+  ('12020000-0000-0000-0000-000000000011', '12000000-0000-0000-0001-000000000002', null,
+   '12.2.8', 'As máquinas, as áreas de circulação, os postos de trabalho e quaisquer outros locais em que possa haver trabalhadores devem ficar posicionados de modo que não ocorra transporte e movimentação aérea de materiais sobre os trabalhadores.', 11),
+  ('12020000-0000-0000-0000-000000000012', '12000000-0000-0000-0001-000000000002', '12020000-0000-0000-0000-000000000011',
+   '12.2.8.1', 'É permitido o transporte de cargas em teleférico nas áreas internas e externas à edificação fabril, desde que não haja postos de trabalho sob o seu percurso, exceto os indispensáveis para sua inspeção e manutenção, conforme esta NR e a NR-35.', 12),
+  ('12020000-0000-0000-0000-000000000013', '12000000-0000-0000-0001-000000000002', null,
+   '12.2.9', 'Nos casos em que houver regulamentação específica ou NR setorial estabelecendo requisitos para sinalização, arranjos físicos, circulação e armazenamento, prevalecerá a regulamentação específica ou a NR setorial.', 13)
+on conflict do nothing;
