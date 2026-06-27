@@ -2,7 +2,7 @@ fastapi
 uvicorn[standard]
 supabase
 pydantic-settings
+anthropic
 
-# adicionados mais adiante (passos da IA e do PDF):
-# anthropic
+# adicionado mais adiante (passo do PDF):
 # reportlab

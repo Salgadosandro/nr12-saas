@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import CurrentUser, get_current_user
 from ..schemas import CreateRevisionIn, PatchReportIn
+from ..services.ai import draft_parecer
 from ..services.dossier import build_dossier, get_report_or_404
 
 router = APIRouter(tags=["reports"])
@@ -67,7 +68,18 @@ def generate_draft(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Monta o dossiê, chama a IA e grava o rascunho (ai_generated_text)."""
-    raise HTTPException(status_code=501, detail="Não implementado")
+    report = get_report_or_404(user.db, report_id)
+    dossier = build_dossier(user.db, report)
+    texto = draft_parecer(dossier)
+
+    updates = {"ai_generated_text": texto}
+    # semeia o final_text com o rascunho, se ainda vazio (ponto de partida da edição)
+    if not report.get("final_text"):
+        updates["final_text"] = texto
+
+    updated = user.db.table("reports").update(updates).eq("id", report_id).execute().data
+    final_text = updated[0].get("final_text") if updated else texto
+    return {"id": report_id, "ai_generated_text": texto, "final_text": final_text}
 
 
 @router.get("/reports/{report_id}")
