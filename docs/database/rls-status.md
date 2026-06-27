@@ -5,16 +5,17 @@ tabela. Reflete o banco real no Supabase. Atualizar conforme avança.
 
 Legenda: ✅ feito · ⬜ pendente · 🔒 bloqueado de propósito · 🔜 no marco do Auth.
 
-**RLS habilitado em TODAS as 27 tabelas.** Funções auxiliares:
+**RLS habilitado em TODAS as 28 tabelas.** Funções auxiliares:
 `current_account_ids()` (setof, usada nas políticas) e `current_account_id()`
 (escalar, usada como default do `account_id` denormalizado nas transacionais).
 
-## Camada de Referência (8) — ✅ completa
+## Camada de Referência (9) — ✅ completa
 Leitura aberta (`SELECT` para `authenticated`), escrita só `service_role`.
 
 | Tabela | RLS | Política |
 |---|---|---|
 | `standards` | ✅ | `standards_read` (SELECT) |
+| `standard_item_images` 🆕 | ✅ | `standard_item_images_read` (SELECT) — figuras da norma |
 | `standard_versions` | ✅ | `standard_versions_read` (SELECT) |
 | `standard_sections` | ✅ | `standard_sections_read` (SELECT) |
 | `standard_items` | ✅ | `standard_items_read` (SELECT) |
@@ -57,7 +58,8 @@ Leitura aberta (`SELECT` para `authenticated`), escrita só `service_role`.
 | `action_plan_photos` 🆕 | ✅ | `own_account` (ALL) | unique(action_plan, position) + check 1-3 |
 
 ## Placar
-**27 de 27 tabelas 100% fechadas.** ✅ Marco de banco + Auth COMPLETO.
+**28 de 28 tabelas 100% fechadas.** ✅ Marco de banco + Auth COMPLETO.
+(28ª = `standard_item_images`, migration 0005 — figuras da norma.)
 
 ## Auth & Bootstrap (resolve o "ovo-e-galinha")
 

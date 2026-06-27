@@ -114,6 +114,22 @@ A cláusula. Filho de seção (a versão chega via seção).
 
 `unique (standard_section_id, number)`.
 
+## `standard_item_images`
+Figuras de referência da norma (diagramas, exemplos). Global, leitura aberta.
+Distinta de `answer_photos` (evidência de inspeção, do tenant).
+
+| Coluna | Tipo | Null? | Descrição |
+|---|---|---|---|
+| `id` | uuid | não | PK |
+| `standard_item_id` | uuid | não | FK → `standard_items` |
+| `storage_path` | text | não | Caminho no Supabase Storage (bucket de figuras) |
+| `caption` | text | sim | Legenda (ex: "Figura 1") |
+| `position` | integer | não | Ordem |
+| `created_at` | timestamptz | não | — |
+
+`unique (standard_item_id, position)`. RLS: `SELECT` aberto para `authenticated`,
+escrita só `service_role`.
+
 ## `machine_types`
 | Coluna | Tipo | Null? | Descrição |
 |---|---|---|---|

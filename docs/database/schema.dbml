@@ -61,6 +61,17 @@ Table standard_items {
   indexes { (standard_section_id, number) [unique] }
 }
 
+Table standard_item_images {
+  id uuid [pk]
+  standard_item_id uuid [not null, ref: > standard_items.id]
+  storage_path varchar [not null]
+  caption varchar [null]
+  position int [not null]
+  created_at timestamptz [not null]
+  indexes { (standard_item_id, position) [unique] }
+  Note: 'Figuras da norma (global, leitura aberta). Distinta de answer_photos (evidencia do tenant).'
+}
+
 Table machine_types {
   id uuid [pk]
   name varchar [not null, unique]
