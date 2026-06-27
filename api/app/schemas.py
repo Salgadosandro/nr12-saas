@@ -8,3 +8,9 @@ from pydantic import BaseModel
 
 class CreateRevisionIn(BaseModel):
     revision_reason: str | None = None
+
+
+class PatchReportIn(BaseModel):
+    final_text: str | None = None
+    status: str | None = None            # draft | in_review | final
+    revision_reason: str | None = None
