@@ -22,7 +22,13 @@ A **fonte de verdade exata** do schema é [`schema.dbml`](schema.dbml)
 > - `checklist_templates`: `unique(account_id, standard_version_id, name)`.
 > - `checklist_template_sections`/`_items`: **− `position`** (ordem vem da norma).
 > - `checklists`: **+ `inspection_id`** (`not null`, FK→inspections) e `unique(inspection_id, machine_id, checklist_template_id)`.
-> - **RLS habilitado em todas**; políticas em [`rls-status.md`](rls-status.md).
+>
+> **Transacional (sincronizado):** `account_id` **denormalizado** nas 7 transacionais (hot path, política RLS direta — ADR 0006; default via `current_account_id()`). Mais:
+> - **+ `action_plan_photos`** (nova, 27ª tabela): evidência da execução da ação (≤3 fotos).
+> - `inspections`: **+ `name`** (not null) + **`sequence_number`** (not null), `unique(client_id, name, sequence_number)`.
+> - `reports`: `inspection_id` → **not null + unique (1:1)**; **− `client_id`** (vem via inspection); **+ `report_number`** (int, nulo até finalizar), `unique(account_id, report_number)`.
+> - `action_plans`: **`unique(answer_id)`** (1 por não-conformidade); status agora `pendente`(default)`→verificado`; **+ `verified_at`/`verified_by`** (FK profiles) + check; `due_date`/`responsible_name` agora **nullable** (rascunho/negociação).
+> - **RLS habilitado em todas**; políticas em [`rls-status.md`](rls-status.md) (25/27 fechadas; faltam só `accounts`/`account_members` no Auth).
 >
 > O detalhamento por coluna abaixo cobre a base; para o estado **exato**
 > atual (colunas/constraints) consulte sempre o `schema.dbml`.

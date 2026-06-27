@@ -1,6 +1,8 @@
 // =============================================================
 // NR-12 SaaS — Schema (sincronizado com o Supabase) — DBML
-// 26 tabelas. Tenancy normalizada: account_id so nas raizes.
+// 27 tabelas. Tenancy: account_id nas RAIZES + denormalizado nas
+// TRANSACIONAIS (hot path, ADR 0006). Helpers: current_account_ids()
+// (setof, RLS) e current_account_id() (escalar, default).
 // RLS habilitado em TODAS; politicas: ver docs/database/rls-status.md
 // Sem Fase 2 (marketplace/analytics) — design no historico do Git.
 // =============================================================
@@ -225,23 +227,31 @@ Table arts {
 }
 
 // ===== CAMADA 3 — TRANSACIONAL (tenant) =====
+// account_id DENORMALIZADO nestas 7 (+ action_plan_photos): hot path,
+// cadeias profundas -> politica RLS direta + indexada (ADR 0006).
+// Default da sessao via fn current_account_id() (escalar).
 
 Table inspections {
   id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id, note: 'denormalizado (default current_account_id())']
   client_id uuid [not null, ref: > clients.id]
   responsible_professional_id uuid [null, ref: > professionals.id]
   art_id uuid [null, ref: > arts.id]
+  name varchar [not null, note: 'identificador legivel: "Cozinha Central"']
+  sequence_number int [not null, note: 'distingue repeticoes do mesmo nome']
   status varchar [not null, note: 'in_field | completed']
   performed_on date [null]
-  notes text [null]
+  notes text [null, note: 'serve de descricao']
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   deleted_at timestamptz [null]
+  indexes { (client_id, name, sequence_number) [unique] }
   Note: 'Servico do engenheiro, 1..N locais via inspection_scope.'
 }
 
 Table inspection_scope {
   id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id, note: 'denormalizado']
   inspection_id uuid [not null, ref: > inspections.id]
   location_id uuid [not null, ref: > locations.id]
   created_at timestamptz [not null]
@@ -250,6 +260,7 @@ Table inspection_scope {
 
 Table checklists {
   id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id, note: 'denormalizado']
   inspection_id uuid [not null, ref: > inspections.id, note: 'a qual servico pertence']
   machine_id uuid [not null, ref: > machines.id]
   checklist_template_id uuid [not null, ref: > checklist_templates.id, note: 'a forma aplicada']
@@ -264,6 +275,7 @@ Table checklists {
 
 Table answers {
   id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id, note: 'denormalizado']
   checklist_id uuid [not null, ref: > checklists.id]
   checklist_template_item_id uuid [not null, ref: > checklist_template_items.id]
   status varchar [not null, note: 'compliant | non_compliant | not_applicable']
@@ -279,6 +291,7 @@ Table answers {
 
 Table answer_photos {
   id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id, note: 'denormalizado']
   answer_id uuid [not null, ref: > answers.id]
   storage_path varchar [not null]
   position int [not null, note: 'check in (1,2,3)']
@@ -288,9 +301,9 @@ Table answer_photos {
 
 Table reports {
   id uuid [pk]
-  inspection_id uuid [null, ref: > inspections.id, note: 'DECISAO ABERTA: 1:1 vs N']
-  client_id uuid [not null, ref: > clients.id]
-  report_number varchar [null]
+  account_id uuid [not null, ref: > accounts.id, note: 'denormalizado']
+  inspection_id uuid [not null, ref: > inspections.id, note: '1:1 com inspecao (unique)']
+  report_number int [null, note: 'sequencia por conta, nula ate finalizar']
   issued_at date [null]
   status varchar [not null, note: 'draft | in_review | final']
   ai_generated_text text [null]
@@ -299,17 +312,37 @@ Table reports {
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   deleted_at timestamptz [null]
+  indexes {
+    (inspection_id) [unique]
+    (account_id, report_number) [unique]
+  }
+  Note: 'Laudo 1:1 com inspecao. client_id removido (vem via inspection).'
 }
 
 Table action_plans {
   id uuid [pk]
-  answer_id uuid [not null, ref: > answers.id, note: 'resposta non_compliant']
+  account_id uuid [not null, ref: > accounts.id, note: 'denormalizado']
+  answer_id uuid [not null, unique, ref: > answers.id, note: '1 recomendacao por nao-conformidade']
   description text [not null]
-  responsible_name varchar [not null]
-  due_date date [not null]
-  status varchar [null, note: 'aberto | verificado (reinspecao)']
+  responsible_name varchar [null, note: 'nullable: pode rascunhar/negociar']
+  due_date date [null, note: 'nullable: idem']
+  status varchar [not null, note: 'pendente (default) | verificado']
+  verified_at timestamptz [null]
+  verified_by uuid [null, ref: > profiles.id]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
+  Note: 'check: status=verificado exige verified_at + verified_by.'
+}
+
+Table action_plan_photos {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id, note: 'denormalizado']
+  action_plan_id uuid [not null, ref: > action_plans.id]
+  storage_path varchar [not null]
+  position int [not null, note: 'check in (1,2,3)']
+  created_at timestamptz [not null]
+  indexes { (action_plan_id, position) [unique] }
+  Note: 'Evidencia fotografica da execucao da acao corretiva.'
 }
 
 // ===== AGRUPAMENTOS =====
@@ -317,4 +350,4 @@ Table action_plans {
 TableGroup referencia { standards standard_versions standard_sections standard_items machine_types machine_models location_types risk_matrix_rules }
 TableGroup formas_checklist { checklist_templates checklist_template_sections checklist_template_items }
 TableGroup cadastro { accounts account_members clients locations machines profiles professionals arts }
-TableGroup transacional { inspections inspection_scope checklists answers answer_photos reports action_plans }
+TableGroup transacional { inspections inspection_scope checklists answers answer_photos reports action_plans action_plan_photos }
