@@ -31,6 +31,7 @@ def build_dossier(db: Client, report: dict) -> dict:
     company = engineer = art = None
     machines: list[dict] = []
     dashboard: dict = {}
+    nonconformities: list[dict] = []
     if inspection:
         company = _one(db, "clients", inspection["client_id"])
         engineer = _one(db, "professionals", inspection.get("responsible_professional_id"))
@@ -41,14 +42,15 @@ def build_dossier(db: Client, report: dict) -> dict:
         )
         machines = _anexo1_machines(db, checklists)
         dashboard = _anexo2_dashboard(db, checklists)
+        nonconformities = _anexo3_nonconformities(db, checklists)
 
     return {
-        "company": company,                  # dados da empresa (corpo)
-        "engineer": engineer,                # dados do engenheiro (corpo)
-        "anexo1_machines": machines,         # Anexo 1 — lista de máquinas
-        "anexo2_dashboard": dashboard,       # Anexo 2 — consolidado
-        "anexo3_nonconformities": [],        # TODO (próximo passo)
-        "anexo4_art": art,                   # Anexo 4 — ART
+        "company": company,                          # dados da empresa (corpo)
+        "engineer": engineer,                        # dados do engenheiro (corpo)
+        "anexo1_machines": machines,                 # Anexo 1 — lista de máquinas
+        "anexo2_dashboard": dashboard,               # Anexo 2 — consolidado
+        "anexo3_nonconformities": nonconformities,   # Anexo 3 — não-conformidades
+        "anexo4_art": art,                           # Anexo 4 — ART
     }
 
 
@@ -103,3 +105,59 @@ def _anexo2_dashboard(db: Client, checklists: list[dict]) -> dict:
         "machines_not_applicable": nao_se_aplica,
         "nonconformities": sum(nc_por_checklist.values()),
     }
+
+
+def _anexo3_nonconformities(db: Client, checklists: list[dict]) -> list[dict]:
+    """Anexo 3 — não-conformidades: item da norma + risco + fotos + plano + execução."""
+    checklist_ids = [c["id"] for c in checklists]
+    if not checklist_ids:
+        return []
+
+    ncs = (
+        db.table("answers")
+        .select("*")
+        .in_("checklist_id", checklist_ids)
+        .eq("status", "non_compliant")
+        .execute()
+        .data
+    )
+
+    rows = []
+    for a in ncs:
+        # cláusula da norma (answer -> template_item -> standard_item)
+        cti = _one(db, "checklist_template_items", a["checklist_template_item_id"])
+        item = _one(db, "standard_items", cti["standard_item_id"]) if cti else None
+
+        photos = (
+            db.table("answer_photos").select("storage_path,position")
+            .eq("answer_id", a["id"]).order("position").execute().data
+        )
+
+        plans = db.table("action_plans").select("*").eq("answer_id", a["id"]).execute().data
+        plan = plans[0] if plans else None
+        plan_block = None
+        if plan:
+            exec_photos = (
+                db.table("action_plan_photos").select("storage_path,position")
+                .eq("action_plan_id", plan["id"]).order("position").execute().data
+            )
+            plan_block = {
+                "description": plan.get("description"),
+                "responsible_name": plan.get("responsible_name"),
+                "due_date": plan.get("due_date"),
+                "status": plan.get("status"),            # pendente | verificado
+                "verified_at": plan.get("verified_at"),
+                "execution_photos": [p["storage_path"] for p in exec_photos],
+            }
+
+        rows.append({
+            "norm_number": item and item.get("number"),
+            "norm_text": item and item.get("text"),
+            "justification": a.get("justification"),
+            "probability": a.get("probability"),
+            "severity": a.get("severity"),
+            "risk_level": a.get("risk_level"),
+            "photos": [p["storage_path"] for p in photos],
+            "action_plan": plan_block,
+        })
+    return rows
