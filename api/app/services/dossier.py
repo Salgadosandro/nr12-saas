@@ -112,6 +112,7 @@ def _anexo3_nonconformities(db: Client, checklists: list[dict]) -> list[dict]:
     checklist_ids = [c["id"] for c in checklists]
     if not checklist_ids:
         return []
+    ck_by_id = {c["id"]: c for c in checklists}
 
     ncs = (
         db.table("answers")
@@ -124,6 +125,10 @@ def _anexo3_nonconformities(db: Client, checklists: list[dict]) -> list[dict]:
 
     rows = []
     for a in ncs:
+        # de qual máquina é esta não-conformidade (answer -> checklist -> machine)
+        ck = ck_by_id.get(a["checklist_id"])
+        machine = _one(db, "machines", ck["machine_id"]) if ck else None
+
         # cláusula da norma (answer -> template_item -> standard_item)
         cti = _one(db, "checklist_template_items", a["checklist_template_item_id"])
         item = _one(db, "standard_items", cti["standard_item_id"]) if cti else None
@@ -151,6 +156,8 @@ def _anexo3_nonconformities(db: Client, checklists: list[dict]) -> list[dict]:
             }
 
         rows.append({
+            "machine_tag": machine and machine.get("tag"),
+            "machine_code": machine and machine.get("code"),
             "norm_number": item and item.get("number"),
             "norm_text": item and item.get("text"),
             "justification": a.get("justification"),

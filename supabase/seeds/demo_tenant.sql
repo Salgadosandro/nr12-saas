@@ -94,3 +94,64 @@ select 'd9ebe275-b388-49ae-a476-96343b6c7a4a', a.id,
 from answers a
 where a.checklist_id = 'c9000000-0000-0000-0000-000000000031' and a.status = 'non_compliant'
 on conflict do nothing;
+
+-- ===========================================================================
+-- Mais máquinas, para testar o comportamento com múltiplas:
+--   Prensa 02 = toda conforme | Prensa 03 = 1 NC | Prensa 04 = NR não se aplica
+-- ===========================================================================
+
+insert into machines (id, machine_model_id, location_id, tag, code, serial_number, manufacture_year) values
+  ('c9000000-0000-0000-0000-000000000022', 'c9000000-0000-0000-0000-000000000012', 'c9000000-0000-0000-0000-000000000001', 'Prensa 02', 'MQ-02', 'SN-AAA-002', 2020),
+  ('c9000000-0000-0000-0000-000000000023', 'c9000000-0000-0000-0000-000000000012', 'c9000000-0000-0000-0000-000000000001', 'Prensa 03', 'MQ-03', 'SN-AAA-003', 2019),
+  ('c9000000-0000-0000-0000-000000000024', 'c9000000-0000-0000-0000-000000000012', 'c9000000-0000-0000-0000-000000000001', 'Prensa 04', 'MQ-04', 'SN-AAA-004', 2021)
+on conflict do nothing;
+
+-- checklists: 02 e 03 aplicam a NR
+insert into checklists (id, account_id, inspection_id, machine_id, checklist_template_id, status, nr_applies) values
+  ('c9000000-0000-0000-0000-000000000032', 'd9ebe275-b388-49ae-a476-96343b6c7a4a',
+   (select id from inspections where account_id='d9ebe275-b388-49ae-a476-96343b6c7a4a' and name='Inspeção de Teste' limit 1),
+   'c9000000-0000-0000-0000-000000000022', 'c7000000-0000-0000-0000-000000000001', 'completed', true),
+  ('c9000000-0000-0000-0000-000000000033', 'd9ebe275-b388-49ae-a476-96343b6c7a4a',
+   (select id from inspections where account_id='d9ebe275-b388-49ae-a476-96343b6c7a4a' and name='Inspeção de Teste' limit 1),
+   'c9000000-0000-0000-0000-000000000023', 'c7000000-0000-0000-0000-000000000001', 'completed', true)
+on conflict do nothing;
+
+-- Prensa 04: excluída (12.1.4.f INMETRO) — sem respostas, o gate curto-circuita
+insert into checklists (id, account_id, inspection_id, machine_id, checklist_template_id, status, nr_applies, exclusion_code, exclusion_notes) values
+  ('c9000000-0000-0000-0000-000000000034', 'd9ebe275-b388-49ae-a476-96343b6c7a4a',
+   (select id from inspections where account_id='d9ebe275-b388-49ae-a476-96343b6c7a4a' and name='Inspeção de Teste' limit 1),
+   'c9000000-0000-0000-0000-000000000024', 'c7000000-0000-0000-0000-000000000001', 'completed', false, '12.1.4.f', 'Máquina certificada pelo INMETRO.')
+on conflict do nothing;
+
+-- respostas Prensa 02 (todas conformes)
+insert into answers (account_id, checklist_id, checklist_template_item_id, status)
+select 'd9ebe275-b388-49ae-a476-96343b6c7a4a', 'c9000000-0000-0000-0000-000000000032', ti.id, 'compliant'
+from checklist_template_items ti
+join checklist_template_sections s on s.id = ti.checklist_template_section_id
+where s.checklist_template_id = 'c7000000-0000-0000-0000-000000000001'
+on conflict do nothing;
+
+-- respostas Prensa 03 (conformes, depois 1 NC no 12.5.7)
+insert into answers (account_id, checklist_id, checklist_template_item_id, status)
+select 'd9ebe275-b388-49ae-a476-96343b6c7a4a', 'c9000000-0000-0000-0000-000000000033', ti.id, 'compliant'
+from checklist_template_items ti
+join checklist_template_sections s on s.id = ti.checklist_template_section_id
+where s.checklist_template_id = 'c7000000-0000-0000-0000-000000000001'
+on conflict do nothing;
+
+update answers a set
+  status = 'non_compliant',
+  justification = 'Proteção móvel sem dispositivo de intertravamento: a máquina opera com a proteção aberta.',
+  probability = 'medium', severity = 'major', risk_level = 'high'
+from checklist_template_items ti
+join standard_items si on si.id = ti.standard_item_id
+where a.checklist_template_item_id = ti.id
+  and a.checklist_id = 'c9000000-0000-0000-0000-000000000033'
+  and si.number = '12.5.7';
+
+insert into action_plans (account_id, answer_id, description)
+select 'd9ebe275-b388-49ae-a476-96343b6c7a4a', a.id,
+  'Instalar dispositivo de intertravamento na proteção móvel, conforme item 12.5.7.'
+from answers a
+where a.checklist_id = 'c9000000-0000-0000-0000-000000000033' and a.status = 'non_compliant'
+on conflict do nothing;
