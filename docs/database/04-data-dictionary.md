@@ -330,21 +330,28 @@ Escopo da inspeção = quais **locais** o serviço cobre.
 `unique (inspection_id, location_id)`.
 
 ## `checklists`
-Checklist **aplicado**: forma X na máquina Y. Conta deriva via machine →
-location → client.
+Checklist **aplicado**: forma X na máquina Y, dentro da inspeção Z.
+`account_id` denormalizado.
 
 | Coluna | Tipo | Null? | Descrição |
 |---|---|---|---|
 | `id` | uuid | não | PK |
+| `account_id` | uuid | não | FK → `accounts` (denormalizado, default `current_account_id()`) |
+| `inspection_id` | uuid | não | FK → `inspections` (a que serviço pertence) |
 | `machine_id` | uuid | não | FK → `machines` |
 | `checklist_template_id` | uuid | não | FK → `checklist_templates` (a forma aplicada) |
+| `nr_applies` | boolean | não | **Gate NR-12** (default `true`). `false` = máquina excluída (12.1.3/12.1.4), curto-circuita o checklist |
+| `exclusion_code` | text | sim | Item da norma que isenta (ex: `12.1.4.c`), quando `nr_applies=false` |
+| `exclusion_notes` | text | sim | Comprovação da exclusão (ex: nº cert. INMETRO) |
 | `valid_until` | date | sim | Validade por máquina |
 | `status` | text | sim | `in_progress` \| `completed` |
 | `raw_whatsapp_payload` | jsonb | sim | Payload bruto do n8n/WhatsApp |
 | `created_at` / `updated_at` | timestamptz | não | — |
 
-> **Em aberto:** a ligação entre `checklists` e `inspections` foi deixada
-> para uma decisão posterior (deliberadamente).
+`unique (inspection_id, machine_id, checklist_template_id)`. **Check
+`chk_checklists_exclusion`:** `exclusion_code` obrigatório se, e só se,
+`nr_applies = false`. Alimenta o **Anexo 2** do laudo ("máquinas onde a
+NR-12 não se aplica").
 
 ## `answers`
 Resposta por item da forma.
@@ -381,21 +388,28 @@ Até 3 fotos por não-conformidade.
 `unique (answer_id, position)`.
 
 ## `reports`
-Laudo. Conta deriva via client.
+Laudo, **1:N com a inspeção** (revisões no tempo). `account_id`
+denormalizado.
 
 | Coluna | Tipo | Null? | Descrição |
 |---|---|---|---|
 | `id` | uuid | não | PK |
-| `inspection_id` | uuid | sim | FK → `inspections` (**decisão aberta:** 1:1 vs consolida N) |
-| `client_id` | uuid | não | FK → `clients` |
-| `report_number` | text | sim | — |
+| `account_id` | uuid | não | FK → `accounts` (denormalizado, default `current_account_id()`) |
+| `inspection_id` | uuid | não | FK → `inspections` (1:N — revisões) |
+| `version` | int | não | Revisão do laudo (default `1` = emissão inicial) |
+| `revision_reason` | text | sim | Motivo desta revisão; nulo na inicial |
+| `report_number` | text | sim | Mesmo número entre revisões; nulo até finalizar |
 | `issued_at` | date | sim | Emissão |
-| `status` | text | não | `check (draft, in_review, final)` |
+| `status` | text | não | `check (draft, in_review, final)` — por revisão |
 | `ai_generated_text` | text | sim | Rascunho da IA (preservado) |
 | `final_text` | text | sim | Texto final do engenheiro |
-| `pdf_path` | text | sim | PDF gerado |
+| `pdf_path` | text | sim | PDF gerado (artefato congelado da revisão) |
 | `created_at` / `updated_at` | timestamptz | não | — |
 | `deleted_at` | timestamptz | sim | Soft delete |
+
+`unique (inspection_id, version)` e `unique (account_id, report_number, version)`.
+O laudo evolui em revisões conforme os planos de ação são executados; cada
+revisão tem seu próprio PDF.
 
 ## `action_plans`
 Ação corretiva ligada a uma resposta não-conforme.

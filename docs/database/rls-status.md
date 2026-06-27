@@ -49,10 +49,10 @@ Leitura aberta (`SELECT` para `authenticated`), escrita só `service_role`.
 |---|---|---|---|
 | `inspections` | ✅ | `own_account` (ALL) | + name/sequence; unique(client, name, seq) |
 | `inspection_scope` | ✅ | `own_account` (ALL) | unique(inspection, location) |
-| `checklists` | ✅ | `own_account` (ALL) | unique(inspection, machine, template) |
+| `checklists` | ✅ | `own_account` (ALL) | unique(inspection, machine, template) + gate `nr_applies` (12.1.3/12.1.4) + check exclusion |
 | `answers` | ✅ | `own_account` (ALL) | unique(checklist, item) + check non_compliant |
 | `answer_photos` | ✅ | `own_account` (ALL) | unique(answer, position) + check 1-3 |
-| `reports` | ✅ | `own_account` (ALL) | 1:1 inspection (unique); unique(account, report_number) |
+| `reports` | ✅ | `own_account` (ALL) | 1:N inspection (revisões); unique(inspection, version) + unique(account, report_number, version) |
 | `action_plans` | ✅ | `own_account` (ALL) | unique(answer); status pendente→verificado + check |
 | `action_plan_photos` 🆕 | ✅ | `own_account` (ALL) | unique(action_plan, position) + check 1-3 |
 

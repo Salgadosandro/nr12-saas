@@ -264,13 +264,16 @@ Table checklists {
   inspection_id uuid [not null, ref: > inspections.id, note: 'a qual servico pertence']
   machine_id uuid [not null, ref: > machines.id]
   checklist_template_id uuid [not null, ref: > checklist_templates.id, note: 'a forma aplicada']
+  nr_applies boolean [not null, default: true, note: 'gate NR-12: false = maquina excluida (12.1.3/12.1.4), curto-circuita o checklist']
+  exclusion_code varchar [null, note: 'item da norma que isenta, ex 12.1.4.c (quando nr_applies=false)']
+  exclusion_notes text [null, note: 'comprovacao da exclusao (ex: cert. INMETRO)']
   valid_until date [null, note: 'validade por maquina']
   status varchar [null, note: 'in_progress | completed']
   raw_whatsapp_payload json [null]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   indexes { (inspection_id, machine_id, checklist_template_id) [unique] }
-  Note: 'Checklist aplicado: forma X na maquina Y, na inspecao Z.'
+  Note: 'Checklist aplicado: forma X na maquina Y, na inspecao Z. nr_applies=false = norma nao se aplica (alimenta Anexo 2 do laudo). check: exclusion_code obrigatorio sse nr_applies=false.'
 }
 
 Table answers {
@@ -302,10 +305,12 @@ Table answer_photos {
 Table reports {
   id uuid [pk]
   account_id uuid [not null, ref: > accounts.id, note: 'denormalizado']
-  inspection_id uuid [not null, ref: > inspections.id, note: '1:1 com inspecao (unique)']
-  report_number int [null, note: 'sequencia por conta, nula ate finalizar']
+  inspection_id uuid [not null, ref: > inspections.id, note: '1:N com inspecao (revisoes)']
+  version int [not null, default: 1, note: 'revisao do laudo (1 = emissao inicial)']
+  revision_reason text [null, note: 'motivo desta revisao; nulo na inicial']
+  report_number int [null, note: 'mesmo numero entre revisoes; nulo ate finalizar']
   issued_at date [null]
-  status varchar [not null, note: 'draft | in_review | final']
+  status varchar [not null, note: 'draft | in_review | final (por revisao)']
   ai_generated_text text [null]
   final_text text [null]
   pdf_path varchar [null]
@@ -313,10 +318,10 @@ Table reports {
   updated_at timestamptz [not null]
   deleted_at timestamptz [null]
   indexes {
-    (inspection_id) [unique]
-    (account_id, report_number) [unique]
+    (inspection_id, version) [unique]
+    (account_id, report_number, version) [unique]
   }
-  Note: 'Laudo 1:1 com inspecao. client_id removido (vem via inspection).'
+  Note: 'Laudo 1:N com inspecao: evolui em revisoes conforme os planos de acao sao executados. Cada revisao tem seu PDF (artefato congelado). Numero mantido, muda a version.'
 }
 
 Table action_plans {
