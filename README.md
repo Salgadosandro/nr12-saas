@@ -17,11 +17,13 @@ Toda decisão de arquitetura e todo desenho de dados fica documentado em
 
 ## Status atual
 
+Plano de entrega detalhado e ordenado por dependência em [`ROADMAP.md`](ROADMAP.md).
+
 | Marco | Status |
 |---|---|
-| 1. Banco de dados & modelagem | 🟢 Base v1 modelada e documentada ([schema.dbml](docs/database/schema.dbml), 25 tabelas) |
-| 2. Backend / API REST | ⚪ Não iniciado |
+| 1. Banco de dados & modelagem | 🟢 Completo — 27 tabelas no Supabase, RLS + Auth + isolamento multi-tenant testado ([rls-status.md](docs/database/rls-status.md)) |
+| 2. Backend / API REST (laudos) | ⚪ Próximo (após capturar migrations) |
 | 3. Automação WhatsApp (n8n) | ⚪ Não iniciado |
 | 4. Frontend / Dashboard | ⚪ Não iniciado |
-| 5. Pagamentos (Stripe) | ⚪ Não iniciado |
+| 5. Pagamentos (Stripe) | ⚪ Não iniciado (após o core funcionar de ponta a ponta) |
 | 6. App mobile | ⚪ Não iniciado (em aberto, pode não ser necessário) |
