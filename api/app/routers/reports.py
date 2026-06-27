@@ -4,12 +4,16 @@ Por enquanto são STUBS — a estrutura está aqui (rota, método, auth), mas a
 lógica vamos preencher um a um. Cada um já exige autenticação via Depends e
 recebe `user.db` (cliente escopado) para falar com o banco respeitando o RLS.
 """
+import io
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 
 from ..auth import CurrentUser, get_current_user
 from ..schemas import CreateRevisionIn, PatchReportIn
 from ..services.ai import draft_parecer
 from ..services.dossier import build_dossier, get_report_or_404
+from ..services.pdf import render_laudo
 
 router = APIRouter(tags=["reports"])
 
@@ -133,5 +137,20 @@ def render_pdf(
     report_id: str,
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Renderiza o PDF, sobe no Storage e grava pdf_path."""
-    raise HTTPException(status_code=501, detail="Não implementado")
+    """Renderiza o laudo em PDF e devolve para download.
+
+    (Nesta versão o PDF volta direto, para iterarmos a forma; a persistência no
+    Supabase Storage + `pdf_path` entra no próximo passo.)
+    """
+    report = get_report_or_404(user.db, report_id)
+    if not (report.get("final_text") or report.get("ai_generated_text")):
+        raise HTTPException(status_code=400, detail="Gere o rascunho do parecer antes de emitir o PDF")
+
+    dossier = build_dossier(user.db, report)
+    pdf_bytes = render_laudo(report, dossier)
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="laudo_{report_id}.pdf"'},
+    )

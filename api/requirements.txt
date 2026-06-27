@@ -3,6 +3,4 @@ uvicorn[standard]
 supabase
 pydantic-settings
 anthropic
-
-# adicionado mais adiante (passo do PDF):
-# reportlab
+reportlab
