@@ -5,11 +5,12 @@ explica o *porquê*. Este documento é o *como* — ainda em design, será
 aplicado como migration no início da implementação do schema (próximo
 passo do Marco 1).
 
-> **Estado de implementação:** o RLS já está **habilitado nas 26 tabelas**
-> no Supabase, e a função `current_account_ids()` foi criada. As políticas
-> aplicadas até agora (referência, checklist, cadastro-folhas, pessoas) e
-> o que falta (`accounts`/`account_members` no Auth + transacional) estão
-> rastreadas em [`rls-status.md`](rls-status.md).
+> **Estado de implementação:** ✅ **COMPLETO.** RLS habilitado e com política
+> nas **27 tabelas** no Supabase; funções `current_account_ids()` /
+> `current_account_id()` criadas; Auth com bootstrap (trigger `handle_new_user`
+> + RPC `create_account`) funcionando; **teste de isolamento manual passou**
+> (A só vê dados de A, B só vê de B). Detalhes e SQL do bootstrap em
+> [`rls-status.md`](rls-status.md).
 
 ## Conceito-base: "conta atual do usuário logado"
 
