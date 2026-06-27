@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import CurrentUser, get_current_user
 from ..schemas import CreateRevisionIn
+from ..services.dossier import build_dossier, get_report_or_404
 
 router = APIRouter(tags=["reports"])
 
@@ -37,7 +38,9 @@ def get_report(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Retorna o laudo + o dossiê estruturado dos anexos."""
-    raise HTTPException(status_code=501, detail="Não implementado")
+    report = get_report_or_404(user.db, report_id)
+    dossier = build_dossier(user.db, report)
+    return {"report": report, "dossier": dossier}
 
 
 @router.patch("/reports/{report_id}")
