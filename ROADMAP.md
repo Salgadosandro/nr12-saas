@@ -33,7 +33,7 @@ trigger do Auth à parte). O banco agora é reconstruível a partir do repo.
 | **1** | **Criação dos laudos** | ⚪ | **É o produto.** O laudo é o que o cliente paga pra receber. A tabela `reports` já prevê o ciclo `draft → in_review → final` com `ai_generated_text` / `final_text` / `pdf_path`. Trabalho: puxar não-conformidades + risco + planos de ação → IA gera rascunho → engenheiro revisa → gera PDF. Camada de lógica (FastAPI ou Edge Function) — zona de força do autor. |
 | **2** | **Frontend / Dashboard** | ⚪ | A interface pro engenheiro fazer CRUD de cadastro, revisar inspeções e editar/finalizar laudos. Next.js + React + TS + Tailwind + shadcn. Onde o autor mais quer aprender. |
 | **3** | **Stripe (assinatura)** | ⚪ | A catraca. Só faz sentido com o core (laudo + dashboard) já de pé. |
-| **4** | **Consolidação + embeddings** | 🔵 | Fase 2. Indexa planos de ação passados com `pgvector` e sugere recomendações pra não-conformidades parecidas (busca semântica + frequência / "foguinhos"). Só fica útil **depois que houver dado acumulado** — por isso é o último. Desenho preservado no histórico do Git. |
+| **4** | **Consolidação + embeddings** | 🔵 | Fase 2. Indexa planos de ação passados com `pgvector` e sugere recomendações pra não-conformidades parecidas (busca semântica + frequência / "foguinhos"). Só fica útil **depois que houver dado acumulado** — por isso é o último. Desenho preservado no histórico do Git. **Fonte dos embeddings:** `answers.justification` + `action_plans.description` (texto já preservado no fluxo normal) → geração por **backfill** quando a camada for construída. Serviço **próprio**, separado da API do laudo. |
 
 ## Em aberto (encaixam quando o autor decidir)
 
