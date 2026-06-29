@@ -1,4 +1,5 @@
 """Billing: assinar, ver status e o webhook do Stripe."""
+import json
 from datetime import datetime, timezone
 
 import stripe
@@ -41,10 +42,13 @@ async def stripe_webhook(request: Request):
     payload = await request.body()
     sig = request.headers.get("stripe-signature")
     try:
-        event = stripe.Webhook.construct_event(payload, sig, settings.stripe_webhook_secret)
-    except Exception:
+        # verifica a assinatura (segurança); levanta se inválida
+        stripe.Webhook.construct_event(payload, sig, settings.stripe_webhook_secret)
+    except (ValueError, stripe.SignatureVerificationError):
         raise HTTPException(status_code=400, detail="Assinatura do webhook inválida")
 
+    # lê como dict puro (o objeto do Stripe não é dict comum)
+    event = json.loads(payload)
     db = get_supabase_service()
     etype = event["type"]
     obj = event["data"]["object"]
