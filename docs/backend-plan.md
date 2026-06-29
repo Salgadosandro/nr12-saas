@@ -49,9 +49,9 @@ Legenda: ⬜ a fazer · 🟡 em andamento · ✅ feito
 
 ## Fase 5 — Testagem do backend (o objetivo)
 - ✅ Testes automatizados de **RLS** (2 contas, isolamento) — pytest (`api/tests/`, 4 testes verdes)
-- ⬜ Testes de **integração** dos endpoints (pytest + httpx)
+- 🟡 Testes de **integração**: billing (entitlement liga/desliga) ✅; demais endpoints via HTTP ⬜
 - ⬜ **E2E** do laudo: criar → draft (IA) → editar → PDF
-- ⬜ Testes da **camada de estatística**
+- ✅ Testes da **camada de estatística** (foguinho/Wilson, sugestão de notas)
 - ⬜ Teste do fluxo **Stripe** (test mode)
 - ⬜ Conferir que **tudo está em migrations** (schema reproduzível do zero)
 
