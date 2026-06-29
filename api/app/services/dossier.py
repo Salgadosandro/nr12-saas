@@ -108,7 +108,13 @@ def _anexo2_dashboard(db: Client, checklists: list[dict]) -> dict:
 
 
 def _anexo3_nonconformities(db: Client, checklists: list[dict]) -> list[dict]:
-    """Anexo 3 — não-conformidades: item da norma + risco + fotos + plano + execução."""
+    """Anexo 3 — não-conformidades AGRUPADAS por item da norma.
+
+    Cada grupo traz o item (número + texto por extenso) e a lista de falhas
+    encontradas naquele mesmo ponto da norma (máquina + constatação + risco +
+    plano de ação). Mais didático: o requisito aparece uma vez, com todas as
+    máquinas que o infringiram.
+    """
     checklist_ids = [c["id"] for c in checklists]
     if not checklist_ids:
         return []
@@ -123,21 +129,19 @@ def _anexo3_nonconformities(db: Client, checklists: list[dict]) -> list[dict]:
         .data
     )
 
-    rows = []
+    grupos: dict[str, dict] = {}
+    ordem: dict[str, int] = {}
     for a in ncs:
-        # de qual máquina é esta não-conformidade (answer -> checklist -> machine)
         ck = ck_by_id.get(a["checklist_id"])
         machine = _one(db, "machines", ck["machine_id"]) if ck else None
-
-        # cláusula da norma (answer -> template_item -> standard_item)
         cti = _one(db, "checklist_template_items", a["checklist_template_item_id"])
         item = _one(db, "standard_items", cti["standard_item_id"]) if cti else None
+        numero = (item or {}).get("number") or "(sem item)"
 
         photos = (
             db.table("answer_photos").select("storage_path,position")
             .eq("answer_id", a["id"]).order("position").execute().data
         )
-
         plans = db.table("action_plans").select("*").eq("answer_id", a["id"]).execute().data
         plan = plans[0] if plans else None
         plan_block = None
@@ -155,11 +159,17 @@ def _anexo3_nonconformities(db: Client, checklists: list[dict]) -> list[dict]:
                 "execution_photos": [p["storage_path"] for p in exec_photos],
             }
 
-        rows.append({
+        if numero not in grupos:
+            grupos[numero] = {
+                "norm_number": numero,
+                "norm_text": (item or {}).get("text"),
+                "failures": [],
+            }
+            ordem[numero] = (item or {}).get("position") or 9999
+
+        grupos[numero]["failures"].append({
             "machine_tag": machine and machine.get("tag"),
             "machine_code": machine and machine.get("code"),
-            "norm_number": item and item.get("number"),
-            "norm_text": item and item.get("text"),
             "justification": a.get("justification"),
             "probability": a.get("probability"),
             "severity": a.get("severity"),
@@ -167,4 +177,6 @@ def _anexo3_nonconformities(db: Client, checklists: list[dict]) -> list[dict]:
             "photos": [p["storage_path"] for p in photos],
             "action_plan": plan_block,
         })
-    return rows
+
+    # grupos na ordem em que o item aparece na norma
+    return [grupos[n] for n in sorted(grupos, key=lambda n: ordem.get(n, 9999))]

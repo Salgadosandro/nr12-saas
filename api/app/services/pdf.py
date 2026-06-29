@@ -116,23 +116,28 @@ def render_laudo(report: dict, dossier: dict, styles=None) -> bytes:
         ("Não-conformidades", str(d.get("nonconformities", 0))),
     ]))
 
-    # ---- Anexo 3: não-conformidades ----
+    # ---- Anexo 3: não-conformidades agrupadas por item da norma ----
     story.append(Paragraph("Anexo 3 — Não-Conformidades e Planos de Ação", s["H"]))
-    ncs = dossier.get("anexo3_nonconformities") or []
-    if not ncs:
+    grupos = dossier.get("anexo3_nonconformities") or []
+    if not grupos:
         story.append(Paragraph("Nenhuma não-conformidade registrada.", s["Body"]))
-    for i, nc in enumerate(ncs, 1):
-        ap = nc.get("action_plan") or {}
-        risco = RISK_PT.get(nc.get("risk_level"), nc.get("risk_level"))
+    for g in grupos:
+        # o item da norma, por extenso
         story.append(Paragraph(
-            f"<b>NC {i} — {nc.get('machine_tag')} · item {nc.get('norm_number')} "
-            f"(risco {risco})</b>", s["Body"]))
-        story.append(Paragraph(f"<i>Norma:</i> {nc.get('norm_text')}", s["Cell"]))
-        story.append(Paragraph(f"<i>Constatação:</i> {nc.get('justification')}", s["Cell"]))
-        story.append(Paragraph(f"<i>Plano de ação:</i> {ap.get('description') or '—'} "
-                               f"(situação: {ap.get('status') or '—'})", s["Cell"]))
-        fotos = nc.get("photos") or []
-        story.append(Paragraph(f"<i>Evidências fotográficas:</i> {len(fotos)} foto(s).", s["Cell"]))
+            f"<b>Item {g.get('norm_number')}</b> — {g.get('norm_text') or ''}", s["Body"]))
+        story.append(Paragraph("<b>Falhas encontradas:</b>", s["Cell"]))
+        for f in g.get("failures") or []:
+            ap = f.get("action_plan") or {}
+            risco = RISK_PT.get(f.get("risk_level"), f.get("risk_level"))
+            story.append(Paragraph(
+                f"• <b>{f.get('machine_tag')}</b> (risco {risco}): {f.get('justification')}", s["Cell"]))
+            story.append(Paragraph(
+                f"&nbsp;&nbsp;&nbsp;<i>Plano de ação:</i> {ap.get('description') or '—'} "
+                f"(situação: {ap.get('status') or '—'})", s["Cell"]))
+            fotos = f.get("photos") or []
+            if fotos:
+                story.append(Paragraph(f"&nbsp;&nbsp;&nbsp;<i>Evidências:</i> {len(fotos)} foto(s).", s["Cell"]))
+            story.append(Spacer(1, 5))
         story.append(Spacer(1, 8))
 
     # ---- Anexo 4: ART ----
