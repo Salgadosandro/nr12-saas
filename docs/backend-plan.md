@@ -32,6 +32,8 @@ Legenda: ⬜ a fazer · 🟡 em andamento · ✅ feito
 - ✅ Serviço de **geração de embeddings** (Voyage `voyage-3`) + backfill de `answers.justification` + `action_plans.description`
 - ✅ **Busca semântica**: `POST /knowledge/search` (fn `match_knowledge`, HNSW cosseno) — testado ponta a ponta
 - ✅ **Sugestão de notas** (decision support): `POST /knowledge/rating-suggestion` (distribuição histórica de probability/severity, amostra mínima)
+- ✅ **Foguinho do item** (Wilson lower bound, escala 1–5): `POST /knowledge/foguinho` — risco do item honesto com a amostra
+- ✅ **Problemas típicos**: `POST /knowledge/common-problems` (o que verificar/marcar no item)
 - ✅ Matriz de risco populada (`risk_matrix_rules` seed) — destrava o ADR 0003
 - ✅ **RAG**: `POST /knowledge/suggest` (IA adapta um plano a partir dos casos parecidos) — testado (fundamentou no caso pertinente e descartou o não-pertinente)
 - ⬜ **Agregados cross-tenant** ("foguinhos"): Wilson lower bound + k-anonimato (design) — usa `account_id`

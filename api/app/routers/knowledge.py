@@ -11,7 +11,7 @@ O embedding só ACHA; o texto guardado é o que se mostra e preenche.
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import CurrentUser, get_current_user
-from ..schemas import KnowledgeSearchIn, RatingSuggestionIn, SuggestPlanIn
+from ..schemas import ItemQueryIn, KnowledgeSearchIn, RatingSuggestionIn, SuggestPlanIn
 from ..services.ai import suggest_action_plan
 from ..services.embeddings import embed_query
 
@@ -96,6 +96,43 @@ def suggest_plan(
 
     plan = suggest_action_plan(body.text, matches)
     return {"problem": body.text, "suggested_plan": plan, "sources": matches}
+
+
+@router.post("/foguinho")
+def item_foguinho(
+    body: ItemQueryIn,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Risco do item em foguinhos (1–5), pelo limite inferior de Wilson.
+
+    Mostrado quando o engenheiro abre o item: quão problemático ele costuma ser,
+    com a honestidade da amostra embutida (pouca evidência → poucos foguinhos).
+    """
+    item_id = _resolve_item_id(user.db, body.standard_item_number)
+    rows = user.db.rpc(
+        "nc_item_foguinho",
+        {"p_standard_item_id": item_id, "p_machine_type_id": body.machine_type_id},
+    ).execute().data
+    r = rows[0] if rows else {"n": 0, "k": 0, "rate": 0, "wilson_lb": 0, "flames": 0}
+    return {"standard_item_number": body.standard_item_number, **r}
+
+
+@router.post("/common-problems")
+def common_problems(
+    body: ItemQueryIn,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Problemas típicos já encontrados no item — o que verificar/marcar."""
+    item_id = _resolve_item_id(user.db, body.standard_item_number)
+    rows = user.db.rpc(
+        "nc_common_problems",
+        {
+            "p_standard_item_id": item_id,
+            "p_machine_type_id": body.machine_type_id,
+            "p_limit": body.limit,
+        },
+    ).execute().data
+    return {"standard_item_number": body.standard_item_number, "problems": rows}
 
 
 @router.post("/rating-suggestion")
