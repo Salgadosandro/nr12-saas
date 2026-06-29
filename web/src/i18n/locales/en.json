@@ -1,5 +1,27 @@
 {
   "app": { "name": "Relatório Rápido", "norm": "NR-12" },
   "tagline": "NR-12 inspections and reports, the fast way",
-  "language": "Language"
+  "language": "Language",
+  "auth": {
+    "login": "Sign in",
+    "signup": "Create account",
+    "email": "Email",
+    "password": "Password",
+    "company": "Company name",
+    "noAccount": "No account? Sign up",
+    "hasAccount": "Have an account? Sign in",
+    "logout": "Sign out",
+    "loginError": "Invalid email or password",
+    "signupError": "Could not create the account",
+    "loading": "Loading…",
+    "soon": "Coming soon"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "clients": "Clients",
+    "inspections": "Inspections",
+    "reports": "Reports",
+    "billing": "Subscription"
+  },
+  "dashboard": { "welcome": "Welcome to Relatório Rápido" }
 }

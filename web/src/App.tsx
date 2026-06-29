@@ -1,55 +1,32 @@
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { supabase } from './lib/supabase'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { ProtectedRoute } from './auth/ProtectedRoute'
+import { AppLayout } from './components/layout/AppLayout'
+import LoginPage from './pages/LoginPage'
+import SignupPage from './pages/SignupPage'
+import DashboardPage from './pages/DashboardPage'
+import PlaceholderPage from './pages/PlaceholderPage'
 
-// Tela mínima da Fase 0: prova que Tailwind, i18n e o cliente Supabase funcionam.
-// Será substituída pelo roteamento real (login, dashboard...) na Fase 1.
+// As rotas da app:
+//  - públicas: /login e /signup
+//  - privadas: tudo dentro de <ProtectedRoute> (sem sessão → vai pro /login),
+//    renderizadas dentro do <AppLayout> (menu + topo).
 export default function App() {
-  const { t, i18n } = useTranslation()
-  const [conexao, setConexao] = useState<'…' | 'ok' | 'erro'>('…')
-
-  useEffect(() => {
-    // ping simples: se o cliente fala com o Supabase, a sessão resolve sem throw
-    supabase.auth.getSession()
-      .then(() => setConexao('ok'))
-      .catch(() => setConexao('erro'))
-  }, [])
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-slate-50 text-slate-800">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-slate-900">
-          {t('app.name')}
-          <span className="ml-2 align-middle rounded bg-blue-100 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
-            {t('app.norm')}
-          </span>
-        </h1>
-        <p className="mt-2 text-slate-500">{t('tagline')}</p>
-      </div>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
 
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-slate-500">{t('language')}:</span>
-        {(['pt', 'en'] as const).map((lng) => (
-          <button
-            key={lng}
-            onClick={() => i18n.changeLanguage(lng)}
-            className={`px-3 py-1 rounded border transition ${
-              i18n.resolvedLanguage === lng
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white border-slate-300 hover:bg-slate-100'
-            }`}
-          >
-            {lng.toUpperCase()}
-          </button>
-        ))}
-      </div>
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/clients" element={<PlaceholderPage titleKey="nav.clients" />} />
+          <Route path="/inspections" element={<PlaceholderPage titleKey="nav.inspections" />} />
+          <Route path="/reports" element={<PlaceholderPage titleKey="nav.reports" />} />
+          <Route path="/billing" element={<PlaceholderPage titleKey="nav.billing" />} />
+        </Route>
+      </Route>
 
-      <div className="text-sm text-slate-500">
-        Supabase:{' '}
-        <span className={conexao === 'ok' ? 'text-green-600' : conexao === 'erro' ? 'text-red-600' : ''}>
-          {conexao === 'ok' ? '✓ conectado' : conexao === 'erro' ? '✗ erro' : '…'}
-        </span>
-      </div>
-    </div>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }

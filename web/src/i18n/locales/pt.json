@@ -1,5 +1,27 @@
 {
   "app": { "name": "Relatório Rápido", "norm": "NR-12" },
   "tagline": "Inspeções e laudos NR-12, sem complicação",
-  "language": "Idioma"
+  "language": "Idioma",
+  "auth": {
+    "login": "Entrar",
+    "signup": "Criar conta",
+    "email": "E-mail",
+    "password": "Senha",
+    "company": "Nome da empresa",
+    "noAccount": "Não tem conta? Cadastre-se",
+    "hasAccount": "Já tem conta? Entrar",
+    "logout": "Sair",
+    "loginError": "E-mail ou senha inválidos",
+    "signupError": "Não foi possível criar a conta",
+    "loading": "Carregando…",
+    "soon": "Em breve"
+  },
+  "nav": {
+    "dashboard": "Painel",
+    "clients": "Clientes",
+    "inspections": "Inspeções",
+    "reports": "Laudos",
+    "billing": "Assinatura"
+  },
+  "dashboard": { "welcome": "Bem-vindo ao Relatório Rápido" }
 }
