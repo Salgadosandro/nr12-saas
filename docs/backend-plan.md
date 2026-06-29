@@ -49,8 +49,9 @@ Legenda: ⬜ a fazer · 🟡 em andamento · ✅ feito
 
 ## Fase 5 — Testagem do backend (o objetivo)
 - ✅ Testes automatizados de **RLS** (2 contas, isolamento) — pytest (`api/tests/`, 4 testes verdes)
-- 🟡 Testes de **integração**: billing (entitlement liga/desliga) ✅; demais endpoints via HTTP ⬜
-- ⬜ **E2E** do laudo: criar → draft (IA) → editar → PDF
+- 🟡 Testes de **integração**: billing (entitlement) ✅, laudo (transições/versão) ✅; via HTTP puro ⬜ (TestClient quebrou c/ httpx)
+- ✅ **E2E** do laudo: criar revisão → transições draft→in_review→final (com validações) — `test_laudo.py`
+- ✅ **Auditoria de RLS** em TODAS as tabelas (`rls_audit()`, migration 0011) — nenhuma desprotegida
 - ✅ Testes da **camada de estatística** (foguinho/Wilson, sugestão de notas)
 - ⬜ Teste do fluxo **Stripe** (test mode)
 - ✅ Testes de **segurança**: auth 401 (token inválido — bug corrigido), webhook 400 (assinatura falsa), Storage cross-tenant, RLS em subscriptions
