@@ -11,7 +11,8 @@ O embedding só ACHA; o texto guardado é o que se mostra e preenche.
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import CurrentUser, get_current_user
-from ..schemas import KnowledgeSearchIn, RatingSuggestionIn
+from ..schemas import KnowledgeSearchIn, RatingSuggestionIn, SuggestPlanIn
+from ..services.ai import suggest_action_plan
 from ..services.embeddings import embed_query
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -55,6 +56,46 @@ def search_knowledge(
     ).execute().data
 
     return {"query": body.text, "matches": matches}
+
+
+@router.post("/suggest")
+def suggest_plan(
+    body: SuggestPlanIn,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """RAG: acha casos parecidos e a IA escreve um plano de ação adaptado.
+
+    O embedding ACHA os casos; o texto deles alimenta a IA, que ESCREVE o plano
+    (a IA não decodifica o vetor — trabalha sobre o texto recuperado). Devolve o
+    plano sugerido + as fontes, para transparência.
+    """
+    if not body.text.strip():
+        raise HTTPException(status_code=400, detail="Texto da NC vazio")
+
+    filter_item_id = None
+    if body.standard_item_number:
+        filter_item_id = _resolve_item_id(user.db, body.standard_item_number)
+
+    query_vec = embed_query(body.text)
+    matches = user.db.rpc(
+        "match_knowledge",
+        {
+            "query_embedding": query_vec,
+            "match_count": body.limit,
+            "filter_standard_item_id": filter_item_id,
+        },
+    ).execute().data
+
+    if not matches:
+        return {
+            "problem": body.text,
+            "suggested_plan": None,
+            "sources": [],
+            "message": "Nenhum caso parecido na base para fundamentar uma sugestão.",
+        }
+
+    plan = suggest_action_plan(body.text, matches)
+    return {"problem": body.text, "suggested_plan": plan, "sources": matches}
 
 
 @router.post("/rating-suggestion")

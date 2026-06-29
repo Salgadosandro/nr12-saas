@@ -65,6 +65,58 @@ def _resumo_dossie(dossier: dict) -> str:
     return "\n".join(linhas)
 
 
+SUGGEST_SYSTEM = """Você é engenheiro(a) de segurança do trabalho, especialista \
+na NR-12. Recebe uma não-conformidade NOVA e uma lista de CASOS PASSADOS parecidos \
+(cada um com o problema encontrado e o plano de ação que o resolveu).
+
+Sua tarefa: redigir UM plano de ação para a não-conformidade nova, ADAPTANDO o que \
+funcionou nos casos passados ao caso atual.
+
+Regras estritas:
+- Fundamente-se nos casos fornecidos; não invente itens da norma, normas nem números.
+- Seja específico e acionável (o que instalar/ajustar/substituir), em poucas frases.
+- Se os casos não forem suficientemente parecidos, diga isso em vez de forçar.
+- Escreva só o texto do plano de ação, pronto para o engenheiro revisar."""
+
+
+def suggest_action_plan(problem_text: str, matches: list[dict]) -> str:
+    """RAG: a IA escreve um plano adaptado a partir dos casos parecidos achados."""
+    if not settings.anthropic_api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY não configurada no .env")
+
+    casos = []
+    for i, m in enumerate(matches, 1):
+        casos.append(
+            f"Caso {i} (similaridade {m.get('similarity', 0):.2f}, risco {m.get('risk_level')}):\n"
+            f"  Problema: {m.get('problem_text')}\n"
+            f"  Plano que resolveu: {m.get('solution_text')}"
+        )
+    contexto = "\n\n".join(casos) or "(nenhum caso parecido encontrado)"
+
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    try:
+        resp = client.messages.create(
+            model=MODEL,
+            max_tokens=2000,
+            thinking={"type": "adaptive"},
+            system=SUGGEST_SYSTEM,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Não-conformidade nova:\n{problem_text}\n\n"
+                    f"Casos passados parecidos:\n\n{contexto}\n\n"
+                    "Redija o plano de ação adaptado."
+                ),
+            }],
+        )
+    except anthropic.AuthenticationError:
+        raise HTTPException(status_code=500, detail="Chave da Anthropic inválida")
+    except anthropic.APIError as e:
+        raise HTTPException(status_code=502, detail=f"Erro na API da Anthropic: {e}")
+
+    return "".join(b.text for b in resp.content if b.type == "text").strip()
+
+
 def draft_parecer(dossier: dict) -> str:
     if not settings.anthropic_api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY não configurada no .env")

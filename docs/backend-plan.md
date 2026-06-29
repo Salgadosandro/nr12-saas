@@ -33,7 +33,7 @@ Legenda: ⬜ a fazer · 🟡 em andamento · ✅ feito
 - ✅ **Busca semântica**: `POST /knowledge/search` (fn `match_knowledge`, HNSW cosseno) — testado ponta a ponta
 - ✅ **Sugestão de notas** (decision support): `POST /knowledge/rating-suggestion` (distribuição histórica de probability/severity, amostra mínima)
 - ✅ Matriz de risco populada (`risk_matrix_rules` seed) — destrava o ADR 0003
-- ⬜ **RAG**: `POST /knowledge/suggest` (IA adapta um plano a partir dos casos parecidos)
+- ✅ **RAG**: `POST /knowledge/suggest` (IA adapta um plano a partir dos casos parecidos) — testado (fundamentou no caso pertinente e descartou o não-pertinente)
 - ⬜ **Agregados cross-tenant** ("foguinhos"): Wilson lower bound + k-anonimato (design) — usa `account_id`
 - ⬜ `solution_embedding` (agrupar planos parecidos) — fase posterior
 - ✅ Serviço/endpoints próprios (router `knowledge`, separado da API do laudo)

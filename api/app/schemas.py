@@ -25,3 +25,9 @@ class KnowledgeSearchIn(BaseModel):
 class RatingSuggestionIn(BaseModel):
     standard_item_number: str            # item da norma (ex.: "12.4.3")
     machine_type_id: str | None = None   # refina por tipo de máquina (opcional)
+
+
+class SuggestPlanIn(BaseModel):
+    text: str                            # a NC nova (problema) a resolver
+    standard_item_number: str | None = None   # filtra os casos parecidos por item
+    limit: int = 3                       # quantos casos alimentam a IA
