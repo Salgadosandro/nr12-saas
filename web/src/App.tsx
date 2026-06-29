@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import DashboardPage from './pages/DashboardPage'
 import PlaceholderPage from './pages/PlaceholderPage'
+import ClientsPage from './features/clients/ClientsPage'
 
 // As rotas da app:
 //  - públicas: /login e /signup
@@ -19,7 +20,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
-          <Route path="/clients" element={<PlaceholderPage titleKey="nav.clients" />} />
+          <Route path="/clients" element={<ClientsPage />} />
           <Route path="/inspections" element={<PlaceholderPage titleKey="nav.inspections" />} />
           <Route path="/reports" element={<PlaceholderPage titleKey="nav.reports" />} />
           <Route path="/billing" element={<PlaceholderPage titleKey="nav.billing" />} />

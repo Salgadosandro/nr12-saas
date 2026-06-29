@@ -2,6 +2,14 @@
   "app": { "name": "Relatório Rápido", "norm": "NR-12" },
   "tagline": "Inspeções e laudos NR-12, sem complicação",
   "language": "Idioma",
+  "common": {
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "edit": "Editar",
+    "loading": "Carregando…",
+    "actions": "Ações",
+    "saving": "Salvando…"
+  },
   "auth": {
     "login": "Entrar",
     "signup": "Criar conta",
@@ -23,5 +31,19 @@
     "reports": "Laudos",
     "billing": "Assinatura"
   },
-  "dashboard": { "welcome": "Bem-vindo ao Relatório Rápido" }
+  "dashboard": { "welcome": "Bem-vindo ao Relatório Rápido" },
+  "clients": {
+    "title": "Clientes",
+    "new": "Novo cliente",
+    "name": "Razão social",
+    "cnpj": "CNPJ",
+    "contactName": "Contato",
+    "contactEmail": "E-mail do contato",
+    "contactPhone": "Telefone",
+    "empty": "Nenhum cliente ainda. Cadastre o primeiro.",
+    "cnpjHint": "14 dígitos (só números)",
+    "nameRequired": "Informe a razão social",
+    "cnpjInvalid": "CNPJ deve ter 14 dígitos",
+    "emailInvalid": "E-mail inválido"
+  }
 }

@@ -2,6 +2,14 @@
   "app": { "name": "Relatório Rápido", "norm": "NR-12" },
   "tagline": "NR-12 inspections and reports, the fast way",
   "language": "Language",
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "loading": "Loading…",
+    "actions": "Actions",
+    "saving": "Saving…"
+  },
   "auth": {
     "login": "Sign in",
     "signup": "Create account",
@@ -23,5 +31,19 @@
     "reports": "Reports",
     "billing": "Subscription"
   },
-  "dashboard": { "welcome": "Welcome to Relatório Rápido" }
+  "dashboard": { "welcome": "Welcome to Relatório Rápido" },
+  "clients": {
+    "title": "Clients",
+    "new": "New client",
+    "name": "Company name",
+    "cnpj": "Tax ID (CNPJ)",
+    "contactName": "Contact",
+    "contactEmail": "Contact email",
+    "contactPhone": "Phone",
+    "empty": "No clients yet. Add the first one.",
+    "cnpjHint": "14 digits (numbers only)",
+    "nameRequired": "Company name is required",
+    "cnpjInvalid": "CNPJ must have 14 digits",
+    "emailInvalid": "Invalid email"
+  }
 }
