@@ -1,10 +1,10 @@
 // =============================================================
 // NR-12 SaaS — Schema (sincronizado com o Supabase) — DBML
-// 27 tabelas. Tenancy: account_id nas RAIZES + denormalizado nas
+// 28 tabelas. Tenancy: account_id nas RAIZES + denormalizado nas
 // TRANSACIONAIS (hot path, ADR 0006). Helpers: current_account_ids()
 // (setof, RLS) e current_account_id() (escalar, default).
 // RLS habilitado em TODAS; politicas: ver docs/database/rls-status.md
-// Sem Fase 2 (marketplace/analytics) — design no historico do Git.
+// Camada de conhecimento (embeddings/pgvector) viva: knowledge_entries (ADR 0007).
 // =============================================================
 
 Project nr12_saas {
@@ -361,9 +361,26 @@ Table action_plan_photos {
   Note: 'Evidencia fotografica da execucao da acao corretiva.'
 }
 
+Table knowledge_entries {
+  id uuid [pk]
+  account_id uuid [not null, ref: > accounts.id, note: 'tenancy/RLS; default current_account_id()']
+  machine_type_id uuid [null, ref: > machine_types.id, note: 'estatistica/filtro']
+  machine_model_id uuid [null, ref: > machine_models.id, note: 'estatistica/filtro']
+  standard_item_id uuid [not null, ref: > standard_items.id]
+  source_answer_id uuid [not null, unique, ref: > answers.id, note: 'proveniencia; backfill idempotente']
+  problem_text text [not null, note: 'CONTEUDO: o que se mostra']
+  solution_text text [null, note: 'CONTEUDO: o que se preenche']
+  risk_level varchar [null]
+  problem_embedding "vector(1024)" [not null, note: 'INDICE de busca (Voyage voyage-3); embedding e mao-unica, por isso o texto fica junto']
+  model varchar [not null, note: 'ex.: voyage-3']
+  created_at timestamptz [not null]
+  Note: 'Base de conhecimento (busca semantica + estatistica). 1 linha por NC. Embedding acha, texto mostra. fn match_knowledge (vizinhanca) + view knowledge_stats_by_item (security_invoker). Sugestao de notas: fn nc_rating_suggestion sobre answers.'
+}
+
 // ===== AGRUPAMENTOS =====
 
 TableGroup referencia { standards standard_versions standard_sections standard_items machine_types machine_models location_types risk_matrix_rules }
 TableGroup formas_checklist { checklist_templates checklist_template_sections checklist_template_items }
 TableGroup cadastro { accounts account_members clients locations machines profiles professionals arts }
 TableGroup transacional { inspections inspection_scope checklists answers answer_photos reports action_plans action_plan_photos }
+TableGroup conhecimento { knowledge_entries }

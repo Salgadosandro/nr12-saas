@@ -14,3 +14,14 @@ class PatchReportIn(BaseModel):
     final_text: str | None = None
     status: str | None = None            # draft | in_review | final
     revision_reason: str | None = None
+
+
+class KnowledgeSearchIn(BaseModel):
+    text: str                            # a NC nova (problema) que se procura
+    standard_item_number: str | None = None   # filtrar por item da norma (ex.: "12.4.3")
+    limit: int = 5
+
+
+class RatingSuggestionIn(BaseModel):
+    standard_item_number: str            # item da norma (ex.: "12.4.3")
+    machine_type_id: str | None = None   # refina por tipo de máquina (opcional)

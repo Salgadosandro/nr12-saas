@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import reports
+from .routers import knowledge, reports
 
 app = FastAPI(title="NR-12 Laudos API", version="0.1.0")
 
@@ -15,6 +15,7 @@ app.add_middleware(
 )
 
 app.include_router(reports.router)
+app.include_router(knowledge.router)
 
 
 @app.get("/health")

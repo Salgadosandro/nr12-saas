@@ -27,12 +27,16 @@ Legenda: ⬜ a fazer · 🟡 em andamento · ✅ feito
 - ⬜ (demais anexos sob demanda, por tipo de máquina)
 
 ## Fase 3 — Camada de estatística (analytics / embeddings)
-- ⬜ Habilitar **`pgvector`** no Postgres
-- ⬜ Modelar o armazenamento de embeddings (coluna `vector` ou tabela de conhecimento) — **ADR**
-- ⬜ Serviço de **geração de embeddings** (backfill de `answers.justification` + `action_plans.description`)
-- ⬜ **Busca semântica**: sugerir plano de ação para não-conformidade parecida
-- ⬜ **Agregados de frequência** ("foguinhos"): Wilson lower bound + k-anonimato (design)
-- ⬜ Serviço/endpoints próprios (separado da API do laudo)
+- ✅ Habilitar **`pgvector`** no Postgres (migration 0006)
+- ✅ Modelar o armazenamento de embeddings — tabela `knowledge_entries` (texto + vetor) — **ADR 0007**
+- ✅ Serviço de **geração de embeddings** (Voyage `voyage-3`) + backfill de `answers.justification` + `action_plans.description`
+- ✅ **Busca semântica**: `POST /knowledge/search` (fn `match_knowledge`, HNSW cosseno) — testado ponta a ponta
+- ✅ **Sugestão de notas** (decision support): `POST /knowledge/rating-suggestion` (distribuição histórica de probability/severity, amostra mínima)
+- ✅ Matriz de risco populada (`risk_matrix_rules` seed) — destrava o ADR 0003
+- ⬜ **RAG**: `POST /knowledge/suggest` (IA adapta um plano a partir dos casos parecidos)
+- ⬜ **Agregados cross-tenant** ("foguinhos"): Wilson lower bound + k-anonimato (design) — usa `account_id`
+- ⬜ `solution_embedding` (agrupar planos parecidos) — fase posterior
+- ✅ Serviço/endpoints próprios (router `knowledge`, separado da API do laudo)
 
 ## Fase 4 — Stripe (assinatura)
 - ⬜ Modelar **planos/assinaturas** (tabelas `plans` / `subscriptions` + RLS) — **ADR de billing**

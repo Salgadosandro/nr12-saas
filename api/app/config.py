@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # Opcionais (entram mais adiante):
     supabase_service_role_key: str | None = None
     anthropic_api_key: str | None = None
+    voyage_api_key: str | None = None          # embeddings (camada de conhecimento)
 
 
 settings = Settings()

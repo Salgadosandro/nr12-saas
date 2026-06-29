@@ -57,9 +57,19 @@ Leitura aberta (`SELECT` para `authenticated`), escrita só `service_role`.
 | `action_plans` | ✅ | `own_account` (ALL) | unique(answer); status pendente→verificado + check |
 | `action_plan_photos` 🆕 | ✅ | `own_account` (ALL) | unique(action_plan, position) + check 1-3 |
 
+## Conhecimento (1) — ✅ completa
+| Tabela | RLS | Política | Regras |
+|---|---|---|---|
+| `knowledge_entries` 🆕 | ✅ | `own_account` (ALL) | unique(source_answer); índice HNSW; ADR 0007 |
+
+> ⚠️ Objetos derivados também respeitam o RLS: fn `match_knowledge` e
+> `nc_rating_suggestion` são `SECURITY INVOKER`; a view `knowledge_stats_by_item`
+> tem `security_invoker = on` (sem isso, view roda como dono e ignora o RLS).
+
 ## Placar
-**28 de 28 tabelas 100% fechadas.** ✅ Marco de banco + Auth COMPLETO.
-(28ª = `standard_item_images`, migration 0005 — figuras da norma.)
+**29 de 29 tabelas 100% fechadas.** ✅ Marco de banco + Auth COMPLETO.
+(28ª = `standard_item_images`, migration 0005 — figuras da norma;
+29ª = `knowledge_entries`, migration 0006 — camada de conhecimento.)
 
 ## Auth & Bootstrap (resolve o "ovo-e-galinha")
 

@@ -439,3 +439,30 @@ Ação corretiva ligada a uma resposta não-conforme.
 | `due_date` | date | não | Prazo |
 | `status` | text | sim | `aberto` \| `verificado` (reinspeção — a definir) |
 | `created_at` / `updated_at` | timestamptz | não | — |
+
+## `knowledge_entries`
+Base de conhecimento (busca semântica + estatística). Uma linha por NC, com
+**texto e vetor juntos**: o embedding *acha* casos parecidos; o texto é o que se
+mostra/preenche (o embedding é mão-única). Ver ADR 0007. Requer extensão
+`pgvector`.
+
+| Coluna | Tipo | Null? | Descrição |
+|---|---|---|---|
+| `id` | uuid | não | PK |
+| `account_id` | uuid | não | Tenancy/RLS; default `current_account_id()` |
+| `machine_type_id` | uuid | sim | FK → `machine_types` (estatística/filtro) |
+| `machine_model_id` | uuid | sim | FK → `machine_models` (estatística/filtro) |
+| `standard_item_id` | uuid | não | FK → `standard_items` |
+| `source_answer_id` | uuid | não | FK → `answers`, **unique** (proveniência; backfill idempotente) |
+| `problem_text` | text | não | Constatação (o que se mostra) |
+| `solution_text` | text | sim | Plano de ação (o que se preenche) |
+| `risk_level` | varchar | sim | Cópia do risco no momento |
+| `problem_embedding` | `vector(1024)` | não | Índice de busca (Voyage `voyage-3`) |
+| `model` | varchar | não | Modelo do embedding (ex.: `voyage-3`) |
+| `created_at` | timestamptz | não | — |
+
+`unique (source_answer_id)`. Índice **HNSW** (`vector_cosine_ops`) em
+`problem_embedding`. RLS `own_account` (igual às transacionais). Derivados:
+fn `match_knowledge` (vizinhança), view `knowledge_stats_by_item`
+(`security_invoker = on`), fn `nc_rating_suggestion` (distribuição de notas,
+sobre `answers`).
