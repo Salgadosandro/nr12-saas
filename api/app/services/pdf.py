@@ -1,8 +1,9 @@
 """Renderização do laudo NR-12 em PDF (reportlab).
 
-Monta o documento: corpo (parecer) + Anexo 1 (máquinas) + Anexo 2 (dashboard)
-+ Anexo 3 (não-conformidades) + Anexo 4 (ART). A forma será lapidada depois,
-com o PDF à vista.
+Monta o documento: faixa de título + Parecer (corpo) + Identificação + Anexo 1
+(máquinas) + Anexo 2 (consolidação + gráfico de rosca) + Anexo 3
+(não-conformidades agrupadas por item da norma) + Anexo 4 (ART). Rodapé com
+numeração de páginas em todas as folhas.
 """
 import io
 import re
@@ -16,7 +17,10 @@ from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
+from reportlab.pdfgen import canvas
 from reportlab.platypus import (
+    KeepTogether,
+    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -29,6 +33,7 @@ BLUE = colors.HexColor("#3AA0CC")
 LIGHT = colors.HexColor("#EAF2F8")
 
 RISK_PT = {"low": "baixo", "medium": "médio", "high": "alto", "critical": "crítico"}
+RISK_COLOR = {"low": "#7F8C8D", "medium": "#D4AC0D", "high": "#E67E22", "critical": "#C0392B"}
 
 
 def _esc(t) -> str:
@@ -36,9 +41,41 @@ def _esc(t) -> str:
     return _xml_escape(str(t if t is not None else ""))
 
 
+class NumberedCanvas(canvas.Canvas):
+    """Canvas que escreve o rodapé (linha + identificação + 'Página X de Y')
+    em todas as folhas — só dá pra saber o total no fim, daí o dois-passos."""
+
+    def __init__(self, *args, footer="", **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_states = []
+        self._footer = footer
+
+    def showPage(self):
+        self._saved_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        total = len(self._saved_states)
+        for state in self._saved_states:
+            self.__dict__.update(state)
+            self._draw_footer(total)
+            super().showPage()
+        super().save()
+
+    def _draw_footer(self, total):
+        w, _ = self._pagesize
+        self.setStrokeColor(NAVY)
+        self.setLineWidth(0.5)
+        self.line(2 * cm, 1.4 * cm, w - 2 * cm, 1.4 * cm)
+        self.setFont("Helvetica", 8)
+        self.setFillColor(colors.grey)
+        self.drawString(2 * cm, 1.0 * cm, self._footer)
+        self.drawRightString(w - 2 * cm, 1.0 * cm, f"Página {self._pageNumber} de {total}")
+
+
 def _styles():
     s = getSampleStyleSheet()
-    s.add(ParagraphStyle("Titulo", parent=s["Title"], textColor=NAVY, fontSize=18, spaceAfter=4))
+    s.add(ParagraphStyle("TituloBand", parent=s["Title"], textColor=colors.white, fontSize=16, alignment=0))
     s.add(ParagraphStyle("Sub", parent=s["Normal"], textColor=BLUE, fontSize=10, spaceAfter=12))
     s.add(ParagraphStyle("H", parent=s["Heading2"], textColor=NAVY, fontSize=13, spaceBefore=14, spaceAfter=6))
     s.add(ParagraphStyle("Body", parent=s["Normal"], alignment=TA_JUSTIFY, fontSize=10.5, leading=15, spaceAfter=8))
@@ -62,8 +99,23 @@ def _kv_table(rows):
     return t
 
 
+def _title_block(report: dict, s, width):
+    band = Table([[Paragraph("LAUDO TÉCNICO — NR-12", s["TituloBand"])]], colWidths=[width])
+    band.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), NAVY),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+    ]))
+    num = report.get("report_number") or "(sem número)"
+    meta = Paragraph(
+        f"Laudo nº {num} &nbsp;·&nbsp; revisão {report.get('version')} "
+        f"&nbsp;·&nbsp; situação: {report.get('status')}", s["Sub"])
+    return [band, Spacer(1, 6), meta, Spacer(1, 4)]
+
+
 def _donut(dash: dict):
-    """Gráfico de rosca da consolidação por máquina."""
+    """Gráfico de rosca da consolidação por máquina (centralizado)."""
     conformes = int(dash.get("machines_compliant") or 0)
     nao_aplica = int(dash.get("machines_not_applicable") or 0)
     total = int(dash.get("machines_total") or 0)
@@ -74,10 +126,11 @@ def _donut(dash: dict):
     labels = ["Conformes", "Com não-conformidade", "NR-12 não se aplica"]
     cols = [colors.HexColor("#2E8B57"), colors.HexColor("#C0392B"), colors.HexColor("#95A5A6")]
 
-    d = Drawing(440, 165)
+    d = Drawing(460, 200)
+    d.hAlign = "CENTER"
     pie = Pie()
-    pie.x, pie.y = 10, 8
-    pie.width = pie.height = 150
+    pie.x, pie.y = 30, 22
+    pie.width = pie.height = 160
     pie.data = data
     pie.innerRadiusFraction = 0.55  # rosca
     pie.slices.strokeColor = colors.white
@@ -87,28 +140,28 @@ def _donut(dash: dict):
     d.add(pie)
 
     leg = Legend()
-    leg.x, leg.y = 195, 110
+    leg.x, leg.y = 230, 130
     leg.fontName, leg.fontSize = "Helvetica", 9
-    leg.dxTextSpace, leg.deltay = 6, 16
+    leg.dxTextSpace, leg.deltay = 6, 18
     leg.colorNamePairs = [(cols[i], f"{labels[i]}: {data[i]}") for i in range(len(data))]
     d.add(leg)
     return d
 
 
-def _render_norma(story, s, texto):
-    """Renderiza o item da norma em negrito + aspas, com as alíneas estruturadas
-    (recuo, marcador pendente e espaçamento), imitando o layout da norma."""
+def _render_norma(out, s, texto):
+    """Acrescenta a `out` o texto da norma em negrito + aspas, com as alíneas
+    (a, b, c...) estruturadas (recuo, marcador pendente, espaçamento)."""
     texto = (texto or "").strip()
     partes = re.split(r"(?:^|(?<=\s))([a-z])\)\s", texto)
     intro = _esc(partes[0].strip())
     alineas = [(partes[i], _esc(partes[i + 1].strip())) for i in range(1, len(partes) - 1, 2)]
     if not alineas:
-        story.append(Paragraph(f'<b>"{intro}"</b>', s["Norma"]))
+        out.append(Paragraph(f'<b>"{intro}"</b>', s["Norma"]))
         return
-    story.append(Paragraph(f'<b>"{intro}</b>', s["Norma"]))
+    out.append(Paragraph(f'<b>"{intro}</b>', s["Norma"]))
     for j, (letra, txt) in enumerate(alineas):
         fecha = '"' if j == len(alineas) - 1 else ""
-        story.append(Paragraph(f"<b>{letra}) {txt}{fecha}</b>", s["Alinea"]))
+        out.append(Paragraph(f"<b>{letra}) {txt}{fecha}</b>", s["Alinea"]))
 
 
 def render_laudo(report: dict, dossier: dict, styles=None) -> bytes:
@@ -123,17 +176,14 @@ def render_laudo(report: dict, dossier: dict, styles=None) -> bytes:
     company = dossier.get("company") or {}
     engineer = dossier.get("engineer") or {}
 
-    # ---- Cabeçalho ----
-    story.append(Paragraph("LAUDO TÉCNICO — NR-12", s["Titulo"]))
-    num = report.get("report_number") or "(sem número)"
-    story.append(Paragraph(
-        f"Nº {num} · revisão {report.get('version')} · situação: {report.get('status')}", s["Sub"]))
+    # ---- Faixa de título ----
+    story += _title_block(report, s, doc.width)
 
     # ---- Corpo (parecer) ----
     corpo = report.get("final_text") or report.get("ai_generated_text") or "(parecer ainda não gerado)"
     story.append(Paragraph("1. Parecer Técnico", s["H"]))
     for par in [p.strip() for p in corpo.split("\n") if p.strip()]:
-        story.append(Paragraph(par, s["Body"]))
+        story.append(Paragraph(_esc(par), s["Body"]))
 
     # ---- Identificação ----
     story.append(Paragraph("2. Identificação", s["H"]))
@@ -150,12 +200,12 @@ def render_laudo(report: dict, dossier: dict, styles=None) -> bytes:
     data = [head]
     for m in dossier.get("anexo1_machines") or []:
         data.append([
-            Paragraph(str(m.get("tag") or ""), s["Cell"]),
-            Paragraph(str(m.get("type") or ""), s["Cell"]),
-            Paragraph(str(m.get("manufacturer") or ""), s["Cell"]),
-            Paragraph(str(m.get("model") or ""), s["Cell"]),
-            Paragraph(str(m.get("location") or ""), s["Cell"]),
-            Paragraph("aplica" if m.get("nr_applies") else f"não ({m.get('exclusion_code')})", s["Cell"]),
+            Paragraph(_esc(m.get("tag")), s["Cell"]),
+            Paragraph(_esc(m.get("type")), s["Cell"]),
+            Paragraph(_esc(m.get("manufacturer")), s["Cell"]),
+            Paragraph(_esc(m.get("model")), s["Cell"]),
+            Paragraph(_esc(m.get("location")), s["Cell"]),
+            Paragraph("aplica" if m.get("nr_applies") else f"não ({_esc(m.get('exclusion_code'))})", s["Cell"]),
         ])
     t = Table(data, colWidths=[2.6 * cm, 2.3 * cm, 2.6 * cm, 2.3 * cm, 3.2 * cm, 3 * cm], repeatRows=1)
     t.setStyle(TableStyle([
@@ -169,7 +219,7 @@ def render_laudo(report: dict, dossier: dict, styles=None) -> bytes:
     ]))
     story.append(t)
 
-    # ---- Anexo 2: dashboard ----
+    # ---- Anexo 2: consolidação + gráfico ----
     d = dossier.get("anexo2_dashboard") or {}
     story.append(Paragraph("Anexo 2 — Consolidação", s["H"]))
     story.append(_kv_table([
@@ -180,33 +230,38 @@ def render_laudo(report: dict, dossier: dict, styles=None) -> bytes:
     ]))
     grafico = _donut(d)
     if grafico is not None:
-        story.append(Spacer(1, 8))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("Distribuição das máquinas", s["Cell"]))
         story.append(grafico)
 
     # ---- Anexo 3: não-conformidades agrupadas por item da norma ----
+    story.append(PageBreak())
     story.append(Paragraph("Anexo 3 — Não-Conformidades e Planos de Ação", s["H"]))
     grupos = dossier.get("anexo3_nonconformities") or []
     if not grupos:
         story.append(Paragraph("Nenhuma não-conformidade registrada.", s["Body"]))
     for g in grupos:
-        story.append(Paragraph(f"<b>Item {g.get('norm_number')}</b>", s["Body"]))
-        _render_norma(story, s, g.get("norm_text"))
-        story.append(Spacer(1, 2))
-        story.append(Paragraph("<b>Falhas encontradas:</b>", s["Cell"]))
+        bloco = [Paragraph(f"<b>Item {g.get('norm_number')}</b>", s["Body"])]
+        _render_norma(bloco, s, g.get("norm_text"))
+        bloco.append(Spacer(1, 2))
+        bloco.append(Paragraph("<b>Falhas encontradas:</b>", s["Cell"]))
         for f in g.get("failures") or []:
             ap = f.get("action_plan") or {}
             risco = RISK_PT.get(f.get("risk_level"), f.get("risk_level"))
-            story.append(Paragraph(
-                f"• <b>{_esc(f.get('machine_tag'))}</b> (risco {risco}): {_esc(f.get('justification'))}",
+            cor = RISK_COLOR.get(f.get("risk_level"), "#000000")
+            bloco.append(Paragraph(
+                f'• <b>{_esc(f.get("machine_tag"))}</b> '
+                f'(risco <font color="{cor}"><b>{risco}</b></font>): {_esc(f.get("justification"))}',
                 s["Cell"]))
-            story.append(Paragraph(
-                f"&nbsp;&nbsp;&nbsp;<i>Plano de ação:</i> {_esc(ap.get('description') or '—')} "
-                f"(situação: {_esc(ap.get('status') or '—')})", s["Cell"]))
+            bloco.append(Paragraph(
+                f'&nbsp;&nbsp;&nbsp;<i>Plano de ação:</i> {_esc(ap.get("description") or "—")} '
+                f'(situação: {_esc(ap.get("status") or "—")})', s["Cell"]))
             fotos = f.get("photos") or []
             if fotos:
-                story.append(Paragraph(f"&nbsp;&nbsp;&nbsp;<i>Evidências:</i> {len(fotos)} foto(s).", s["Cell"]))
-            story.append(Spacer(1, 5))
-        story.append(Spacer(1, 10))
+                bloco.append(Paragraph(f"&nbsp;&nbsp;&nbsp;<i>Evidências:</i> {len(fotos)} foto(s).", s["Cell"]))
+            bloco.append(Spacer(1, 5))
+        bloco.append(Spacer(1, 10))
+        story.append(KeepTogether(bloco))
 
     # ---- Anexo 4: ART ----
     art = dossier.get("anexo4_art") or {}
@@ -216,5 +271,6 @@ def render_laudo(report: dict, dossier: dict, styles=None) -> bytes:
     else:
         story.append(Paragraph("ART não anexada a esta inspeção.", s["Body"]))
 
-    doc.build(story)
+    footer = f"Laudo NR-12 · {company.get('name') or '—'} · revisão {report.get('version')}"
+    doc.build(story, canvasmaker=lambda *a, **k: NumberedCanvas(*a, footer=footer, **k))
     return buf.getvalue()
