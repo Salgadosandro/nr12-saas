@@ -18,7 +18,12 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-slate-50 text-slate-800">
       <div className="text-center">
-        <h1 className="text-4xl font-bold text-slate-900">{t('app.name')}</h1>
+        <h1 className="text-4xl font-bold text-slate-900">
+          {t('app.name')}
+          <span className="ml-2 align-middle rounded bg-blue-100 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
+            {t('app.norm')}
+          </span>
+        </h1>
         <p className="mt-2 text-slate-500">{t('tagline')}</p>
       </div>
 

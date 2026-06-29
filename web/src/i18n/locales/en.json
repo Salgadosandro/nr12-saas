@@ -1,5 +1,5 @@
 {
-  "app": { "name": "NR-12 Reports" },
-  "tagline": "NR-12 compliance inspections and reports management",
+  "app": { "name": "Relatório Rápido", "norm": "NR-12" },
+  "tagline": "NR-12 inspections and reports, the fast way",
   "language": "Language"
 }

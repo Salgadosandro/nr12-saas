@@ -1,5 +1,5 @@
 {
-  "app": { "name": "NR-12 Laudos" },
-  "tagline": "Gestão de inspeções e laudos de conformidade NR-12",
+  "app": { "name": "Relatório Rápido", "norm": "NR-12" },
+  "tagline": "Inspeções e laudos NR-12, sem complicação",
   "language": "Idioma"
 }
