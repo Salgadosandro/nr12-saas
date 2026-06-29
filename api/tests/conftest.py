@@ -15,15 +15,20 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # api/
 
 from app.config import settings  # noqa: E402
-from supabase import create_client  # noqa: E402
+from supabase import ClientOptions, create_client  # noqa: E402
 
 USER_A = {"email": "salgadosan_99@hotmail.com", "password": "Teste1234"}
 USER_B = {"email": "rls_b@nr12test.dev", "password": "Teste1234"}
 
 
 def _scoped(email: str, password: str):
-    c = create_client(settings.supabase_url, settings.supabase_anon_key)
-    sess = c.auth.sign_in_with_password({"email": email, "password": password}).session
+    tmp = create_client(settings.supabase_url, settings.supabase_anon_key)
+    sess = tmp.auth.sign_in_with_password({"email": email, "password": password}).session
+    # JWT no header global -> postgrest E storage escopados (igual à API real)
+    c = create_client(
+        settings.supabase_url, settings.supabase_anon_key,
+        options=ClientOptions(headers={"Authorization": f"Bearer {sess.access_token}"}),
+    )
     c.postgrest.auth(sess.access_token)
     # onboarding: garante que o usuário tem uma conta (o que o app faz no 1º login)
     if c.rpc("current_account_id", {}).execute().data is None:

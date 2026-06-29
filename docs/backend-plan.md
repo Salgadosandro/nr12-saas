@@ -53,6 +53,7 @@ Legenda: ⬜ a fazer · 🟡 em andamento · ✅ feito
 - ⬜ **E2E** do laudo: criar → draft (IA) → editar → PDF
 - ✅ Testes da **camada de estatística** (foguinho/Wilson, sugestão de notas)
 - ⬜ Teste do fluxo **Stripe** (test mode)
+- ✅ Testes de **segurança**: auth 401 (token inválido — bug corrigido), webhook 400 (assinatura falsa), Storage cross-tenant, RLS em subscriptions
 - ⬜ Conferir que **tudo está em migrations** (schema reproduzível do zero)
 
 ---

@@ -30,7 +30,11 @@ def get_current_user(
 
     # Valida o token perguntando ao próprio Supabase quem é o dono dele.
     # (Simples e sempre correto; depois dá pra otimizar com verificação local.)
-    resp = db.auth.get_user(token)
+    # get_user LANÇA com token inválido/expirado — qualquer falha = não autorizado.
+    try:
+        resp = db.auth.get_user(token)
+    except Exception:
+        resp = None
     if resp is None or resp.user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
