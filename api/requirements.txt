@@ -6,3 +6,4 @@ anthropic
 voyageai
 stripe
 reportlab
+pytest

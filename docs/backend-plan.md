@@ -48,7 +48,7 @@ Legenda: ⬜ a fazer · 🟡 em andamento · ✅ feito
 - 🟡 **Webhook** `POST /billing/webhook` (código pronto) — falta testar com Stripe CLI (whsec_)
 
 ## Fase 5 — Testagem do backend (o objetivo)
-- ⬜ Testes automatizados de **RLS** (2 contas, isolamento) — pytest
+- ✅ Testes automatizados de **RLS** (2 contas, isolamento) — pytest (`api/tests/`, 4 testes verdes)
 - ⬜ Testes de **integração** dos endpoints (pytest + httpx)
 - ⬜ **E2E** do laudo: criar → draft (IA) → editar → PDF
 - ⬜ Testes da **camada de estatística**
