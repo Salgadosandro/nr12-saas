@@ -40,12 +40,12 @@ Legenda: ⬜ a fazer · 🟡 em andamento · ✅ feito
 - ⬜ `solution_embedding` (agrupar planos parecidos) — fase posterior
 - ✅ Serviço/endpoints próprios (router `knowledge`, separado da API do laudo)
 
-## Fase 4 — Stripe (assinatura)
-- ⬜ Modelar **planos/assinaturas** (tabelas `plans` / `subscriptions` + RLS) — **ADR de billing**
-- ⬜ Configurar produtos/preços no **Stripe (test mode)**
-- ⬜ Endpoint de **checkout session**
-- ⬜ **Webhook** (FastAPI) para eventos (assinatura criada/atualizada/cancelada)
-- ⬜ **Gating** de features por plano (ex.: nº de laudos, acesso à estatística)
+## Fase 4 — Stripe (assinatura OU avulso por máquina)
+- ✅ Modelar `plans` / `subscriptions` / `report_payments` + RLS — **ADR 0008** (migration 0010)
+- ✅ Stripe test mode (BRL); preço inline (price_data) — sem Price pré-criado
+- ✅ Checkout: `POST /billing/subscribe` (assinatura) e `POST /reports/{id}/checkout` (avulso N×preço) — testados
+- ✅ **Gating**: `POST /reports/{id}/pdf` → 402 sem entitlement (assinatura ativa OU laudo pago)
+- 🟡 **Webhook** `POST /billing/webhook` (código pronto) — falta testar com Stripe CLI (whsec_)
 
 ## Fase 5 — Testagem do backend (o objetivo)
 - ⬜ Testes automatizados de **RLS** (2 contas, isolamento) — pytest

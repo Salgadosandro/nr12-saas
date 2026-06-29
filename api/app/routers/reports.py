@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import CurrentUser, get_current_user
 from ..schemas import CreateRevisionIn, PatchReportIn
+from ..services import billing
 from ..services.ai import draft_parecer
 from ..services.dossier import build_dossier, get_report_or_404
 from ..services.pdf import render_laudo
@@ -146,6 +147,13 @@ def render_pdf(
     if not (report.get("final_text") or report.get("ai_generated_text")):
         raise HTTPException(status_code=400, detail="Gere o rascunho do parecer antes de emitir o PDF")
 
+    # gate de billing: sem assinatura ativa nem pagamento avulso -> 402
+    if not billing.is_entitled(user.db, report_id):
+        raise HTTPException(
+            status_code=402,
+            detail="Laudo bloqueado. Assine ou pague o avulso (POST /reports/{id}/checkout).",
+        )
+
     dossier = build_dossier(user.db, report)
     pdf_bytes = render_laudo(report, dossier)
 
@@ -163,3 +171,46 @@ def render_pdf(
     signed = storage.create_signed_url(path, SIGNED_URL_TTL)
     url = signed.get("signedURL") or signed.get("signedUrl")
     return {"pdf_path": path, "signed_url": url, "expires_in": SIGNED_URL_TTL}
+
+
+@router.post("/reports/{report_id}/checkout")
+def checkout_report(
+    report_id: str,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Pagamento avulso (por máquina) para liberar o PDF deste laudo.
+
+    Cria um report_payment pendente e devolve a URL do Stripe Checkout. O webhook
+    marca como pago; aí o /pdf passa a liberar.
+    """
+    report = get_report_or_404(user.db, report_id)
+    if billing.is_entitled(user.db, report_id):
+        return {"already_entitled": True, "message": "Laudo já liberado (assinatura ou pagamento)."}
+
+    plan = billing.get_plan(user.db, "por_maquina")
+    dossier = build_dossier(user.db, report)
+    machine_count = len(dossier.get("anexo1_machines") or []) or 1
+    total = machine_count * plan["amount_cents"]
+
+    pay = user.db.table("report_payments").insert({
+        "report_id": report_id,
+        "machine_count": machine_count,
+        "unit_amount_cents": plan["amount_cents"],
+        "total_amount_cents": total,
+        "currency": plan["currency"],
+    }).execute().data[0]
+
+    session_id, url = billing.create_report_checkout(
+        plan, pay["id"], report_id, machine_count, report["account_id"]
+    )
+    user.db.table("report_payments").update(
+        {"stripe_checkout_session_id": session_id}
+    ).eq("id", pay["id"]).execute()
+
+    return {
+        "checkout_url": url,
+        "machine_count": machine_count,
+        "unit_amount_cents": plan["amount_cents"],
+        "total_amount_cents": total,
+        "currency": plan["currency"],
+    }
