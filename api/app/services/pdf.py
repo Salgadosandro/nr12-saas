@@ -5,7 +5,12 @@ Monta o documento: corpo (parecer) + Anexo 1 (máquinas) + Anexo 2 (dashboard)
 com o PDF à vista.
 """
 import io
+import re
+from xml.sax.saxutils import escape as _xml_escape
 
+from reportlab.graphics.charts.legends import Legend
+from reportlab.graphics.charts.piecharts import Pie
+from reportlab.graphics.shapes import Drawing
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.lib.pagesizes import A4
@@ -26,6 +31,11 @@ LIGHT = colors.HexColor("#EAF2F8")
 RISK_PT = {"low": "baixo", "medium": "médio", "high": "alto", "critical": "crítico"}
 
 
+def _esc(t) -> str:
+    """Escapa &, <, > para não quebrar a marcação do Paragraph."""
+    return _xml_escape(str(t if t is not None else ""))
+
+
 def _styles():
     s = getSampleStyleSheet()
     s.add(ParagraphStyle("Titulo", parent=s["Title"], textColor=NAVY, fontSize=18, spaceAfter=4))
@@ -33,6 +43,10 @@ def _styles():
     s.add(ParagraphStyle("H", parent=s["Heading2"], textColor=NAVY, fontSize=13, spaceBefore=14, spaceAfter=6))
     s.add(ParagraphStyle("Body", parent=s["Normal"], alignment=TA_JUSTIFY, fontSize=10.5, leading=15, spaceAfter=8))
     s.add(ParagraphStyle("Cell", parent=s["Normal"], fontSize=9, leading=12))
+    s.add(ParagraphStyle("Norma", parent=s["Normal"], fontSize=10, leading=14,
+                         leftIndent=0.6 * cm, rightIndent=0.6 * cm, spaceBefore=4, spaceAfter=4))
+    s.add(ParagraphStyle("Alinea", parent=s["Norma"], leftIndent=1.4 * cm,
+                         firstLineIndent=-0.7 * cm, spaceAfter=4))
     return s
 
 
@@ -46,6 +60,55 @@ def _kv_table(rows):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
     return t
+
+
+def _donut(dash: dict):
+    """Gráfico de rosca da consolidação por máquina."""
+    conformes = int(dash.get("machines_compliant") or 0)
+    nao_aplica = int(dash.get("machines_not_applicable") or 0)
+    total = int(dash.get("machines_total") or 0)
+    com_nc = max(0, total - conformes - nao_aplica)
+    data = [conformes, com_nc, nao_aplica]
+    if sum(data) == 0:
+        return None
+    labels = ["Conformes", "Com não-conformidade", "NR-12 não se aplica"]
+    cols = [colors.HexColor("#2E8B57"), colors.HexColor("#C0392B"), colors.HexColor("#95A5A6")]
+
+    d = Drawing(440, 165)
+    pie = Pie()
+    pie.x, pie.y = 10, 8
+    pie.width = pie.height = 150
+    pie.data = data
+    pie.innerRadiusFraction = 0.55  # rosca
+    pie.slices.strokeColor = colors.white
+    pie.slices.strokeWidth = 1
+    for i in range(len(data)):
+        pie.slices[i].fillColor = cols[i]
+    d.add(pie)
+
+    leg = Legend()
+    leg.x, leg.y = 195, 110
+    leg.fontName, leg.fontSize = "Helvetica", 9
+    leg.dxTextSpace, leg.deltay = 6, 16
+    leg.colorNamePairs = [(cols[i], f"{labels[i]}: {data[i]}") for i in range(len(data))]
+    d.add(leg)
+    return d
+
+
+def _render_norma(story, s, texto):
+    """Renderiza o item da norma em negrito + aspas, com as alíneas estruturadas
+    (recuo, marcador pendente e espaçamento), imitando o layout da norma."""
+    texto = (texto or "").strip()
+    partes = re.split(r"(?:^|(?<=\s))([a-z])\)\s", texto)
+    intro = _esc(partes[0].strip())
+    alineas = [(partes[i], _esc(partes[i + 1].strip())) for i in range(1, len(partes) - 1, 2)]
+    if not alineas:
+        story.append(Paragraph(f'<b>"{intro}"</b>', s["Norma"]))
+        return
+    story.append(Paragraph(f'<b>"{intro}</b>', s["Norma"]))
+    for j, (letra, txt) in enumerate(alineas):
+        fecha = '"' if j == len(alineas) - 1 else ""
+        story.append(Paragraph(f"<b>{letra}) {txt}{fecha}</b>", s["Alinea"]))
 
 
 def render_laudo(report: dict, dossier: dict, styles=None) -> bytes:
@@ -115,6 +178,10 @@ def render_laudo(report: dict, dossier: dict, styles=None) -> bytes:
         ("NR-12 não se aplica", str(d.get("machines_not_applicable", 0))),
         ("Não-conformidades", str(d.get("nonconformities", 0))),
     ]))
+    grafico = _donut(d)
+    if grafico is not None:
+        story.append(Spacer(1, 8))
+        story.append(grafico)
 
     # ---- Anexo 3: não-conformidades agrupadas por item da norma ----
     story.append(Paragraph("Anexo 3 — Não-Conformidades e Planos de Ação", s["H"]))
@@ -122,23 +189,24 @@ def render_laudo(report: dict, dossier: dict, styles=None) -> bytes:
     if not grupos:
         story.append(Paragraph("Nenhuma não-conformidade registrada.", s["Body"]))
     for g in grupos:
-        # o item da norma, por extenso
-        story.append(Paragraph(
-            f"<b>Item {g.get('norm_number')}</b> — {g.get('norm_text') or ''}", s["Body"]))
+        story.append(Paragraph(f"<b>Item {g.get('norm_number')}</b>", s["Body"]))
+        _render_norma(story, s, g.get("norm_text"))
+        story.append(Spacer(1, 2))
         story.append(Paragraph("<b>Falhas encontradas:</b>", s["Cell"]))
         for f in g.get("failures") or []:
             ap = f.get("action_plan") or {}
             risco = RISK_PT.get(f.get("risk_level"), f.get("risk_level"))
             story.append(Paragraph(
-                f"• <b>{f.get('machine_tag')}</b> (risco {risco}): {f.get('justification')}", s["Cell"]))
+                f"• <b>{_esc(f.get('machine_tag'))}</b> (risco {risco}): {_esc(f.get('justification'))}",
+                s["Cell"]))
             story.append(Paragraph(
-                f"&nbsp;&nbsp;&nbsp;<i>Plano de ação:</i> {ap.get('description') or '—'} "
-                f"(situação: {ap.get('status') or '—'})", s["Cell"]))
+                f"&nbsp;&nbsp;&nbsp;<i>Plano de ação:</i> {_esc(ap.get('description') or '—')} "
+                f"(situação: {_esc(ap.get('status') or '—')})", s["Cell"]))
             fotos = f.get("photos") or []
             if fotos:
                 story.append(Paragraph(f"&nbsp;&nbsp;&nbsp;<i>Evidências:</i> {len(fotos)} foto(s).", s["Cell"]))
             story.append(Spacer(1, 5))
-        story.append(Spacer(1, 8))
+        story.append(Spacer(1, 10))
 
     # ---- Anexo 4: ART ----
     art = dossier.get("anexo4_art") or {}
