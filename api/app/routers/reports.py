@@ -1,19 +1,18 @@
 """Os 5 endpoints do ciclo de vida do laudo.
 
-Por enquanto são STUBS — a estrutura está aqui (rota, método, auth), mas a
-lógica vamos preencher um a um. Cada um já exige autenticação via Depends e
-recebe `user.db` (cliente escopado) para falar com o banco respeitando o RLS.
+Cada um exige autenticação via Depends e recebe `user.db` (cliente escopado)
+para falar com o banco respeitando o RLS.
 """
-import io
-
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
 
 from ..auth import CurrentUser, get_current_user
 from ..schemas import CreateRevisionIn, PatchReportIn
 from ..services.ai import draft_parecer
 from ..services.dossier import build_dossier, get_report_or_404
 from ..services.pdf import render_laudo
+
+PDF_BUCKET = "laudos"
+SIGNED_URL_TTL = 3600  # 1h
 
 router = APIRouter(tags=["reports"])
 
@@ -137,10 +136,11 @@ def render_pdf(
     report_id: str,
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Renderiza o laudo em PDF e devolve para download.
+    """Renderiza o laudo, sobe no Storage (bucket `laudos`) e grava `pdf_path`.
 
-    (Nesta versão o PDF volta direto, para iterarmos a forma; a persistência no
-    Supabase Storage + `pdf_path` entra no próximo passo.)
+    Devolve uma URL assinada (temporária) para download — o binário não trafega
+    pela API. O caminho codifica a conta na 1ª pasta, e o RLS do Storage garante
+    que só o dono acessa.
     """
     report = get_report_or_404(user.db, report_id)
     if not (report.get("final_text") or report.get("ai_generated_text")):
@@ -149,8 +149,17 @@ def render_pdf(
     dossier = build_dossier(user.db, report)
     pdf_bytes = render_laudo(report, dossier)
 
-    return StreamingResponse(
-        io.BytesIO(pdf_bytes),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="laudo_{report_id}.pdf"'},
+    # {account_id}/{report_id}/v{version}.pdf — a 1ª pasta é conferida pelo RLS
+    path = f"{report['account_id']}/{report_id}/v{report['version']}.pdf"
+    storage = user.db.storage.from_(PDF_BUCKET)
+    storage.upload(
+        path,
+        pdf_bytes,
+        {"content-type": "application/pdf", "upsert": "true"},
     )
+
+    user.db.table("reports").update({"pdf_path": path}).eq("id", report_id).execute()
+
+    signed = storage.create_signed_url(path, SIGNED_URL_TTL)
+    url = signed.get("signedURL") or signed.get("signedUrl")
+    return {"pdf_path": path, "signed_url": url, "expires_in": SIGNED_URL_TTL}

@@ -14,7 +14,7 @@ Legenda: ⬜ a fazer · 🟡 em andamento · ✅ feito
 ---
 
 ## Fase 1 — Completar a API do laudo (o produto)
-- ⬜ Configurar **Supabase Storage** (buckets de fotos e de PDFs + policies por conta)
+- 🟡 Configurar **Supabase Storage** — bucket `laudos` (PDFs) + policies por conta ✅ (migration 0009); bucket de fotos ⬜
 - ⬜ `GET /reports/{id}` — **Anexo 3** (não-conformidades: item da norma + fotos + risco + plano + execução)
 - ⬜ `POST /inspections/{id}/reports` — criar **revisão** (version, revision_reason)
 - ⬜ `PATCH /reports/{id}` — editar `final_text` + transições `draft→in_review→final` (com validação)
