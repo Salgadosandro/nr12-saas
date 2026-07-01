@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { LanguageSwitcher } from '../components/layout/LanguageSwitcher'
+import { Logo } from '../components/Logo'
 
 export default function SignupPage() {
   const { t } = useTranslation()
@@ -39,10 +40,7 @@ export default function SignupPage() {
     <div className="grid min-h-screen place-items-center bg-slate-50 p-4">
       <form onSubmit={onSubmit} className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-slate-900">
-            {t('app.name')}{' '}
-            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-blue-700">{t('app.norm')}</span>
-          </h1>
+          <Logo />
           <LanguageSwitcher />
         </div>
 

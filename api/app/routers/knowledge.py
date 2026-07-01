@@ -8,7 +8,9 @@ Serviço próprio, separado da API do laudo. Fluxo da busca:
 
 O embedding só ACHA; o texto guardado é o que se mostra e preenche.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ..auth import CurrentUser, get_current_user
 from ..schemas import ItemQueryIn, KnowledgeSearchIn, RatingSuggestionIn, SuggestPlanIn
@@ -16,6 +18,7 @@ from ..services.ai import suggest_action_plan
 from ..services.embeddings import embed_query
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+limiter = Limiter(key_func=get_remote_address)
 
 # abaixo disso, a distribuição não é estatisticamente honesta -> não sugerir
 MIN_SAMPLE = 5
@@ -31,7 +34,9 @@ def _resolve_item_id(db, number: str) -> str:
 
 
 @router.post("/search")
+@limiter.limit("30/minute")
 def search_knowledge(
+    request: Request,
     body: KnowledgeSearchIn,
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -59,7 +64,9 @@ def search_knowledge(
 
 
 @router.post("/suggest")
+@limiter.limit("20/minute")
 def suggest_plan(
+    request: Request,
     body: SuggestPlanIn,
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -133,6 +140,38 @@ def common_problems(
         },
     ).execute().data
     return {"standard_item_number": body.standard_item_number, "problems": rows}
+
+
+@router.post("/common-plans")
+def common_plans(
+    body: ItemQueryIn,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Planos de ação típicos para um item da norma — chips de preenchimento rápido.
+
+    Agrega suggested_plan de knowledge_entries por frequência. Sem função SQL dedicada:
+    o volume por item é pequeno e a agregação em Python é suficiente.
+    """
+    item_id = _resolve_item_id(user.db, body.standard_item_number)
+
+    q = (
+        user.db.table("knowledge_entries")
+        .select("solution_text")
+        .eq("standard_item_id", item_id)
+    )
+    if body.machine_type_id:
+        q = q.eq("machine_type_id", body.machine_type_id)
+
+    rows = q.execute().data
+
+    from collections import Counter
+    counts = Counter(r["solution_text"] for r in rows if r.get("solution_text", "").strip())
+    plans = [
+        {"plan_text": text, "vezes": n}
+        for text, n in counts.most_common(body.limit or 5)
+    ]
+
+    return {"standard_item_number": body.standard_item_number, "plans": plans}
 
 
 @router.post("/rating-suggestion")

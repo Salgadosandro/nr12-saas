@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { useClients, useCreateClient, useUpdateClient } from './hooks'
 import { ClientForm } from './ClientForm'
 import type { Client, ClientInput } from './types'
 
 export default function ClientsPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { data: clients, isLoading } = useClients()
   const createMut = useCreateClient()
   const updateMut = useUpdateClient()
-  // null = lista · 'new' = criando · Client = editando
   const [editing, setEditing] = useState<Client | 'new' | null>(null)
 
   function handleSubmit(input: ClientInput) {
@@ -54,30 +55,36 @@ export default function ClientsPage() {
         <p className="text-slate-400">{t('clients.empty')}</p>
       ) : (
         <div className="overflow-x-auto rounded border border-slate-200">
-        <table className="w-full bg-white text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
-            <tr>
-              <th className="px-4 py-2">{t('clients.name')}</th>
-              <th className="px-4 py-2">{t('clients.cnpj')}</th>
-              <th className="px-4 py-2">{t('clients.contactName')}</th>
-              <th className="px-4 py-2 text-right">{t('common.actions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((c) => (
-              <tr key={c.id} className="border-t border-slate-100">
-                <td className="px-4 py-2 font-medium text-slate-800">{c.name}</td>
-                <td className="px-4 py-2 text-slate-500">{c.cnpj ?? '—'}</td>
-                <td className="px-4 py-2 text-slate-500">{c.contact_name ?? '—'}</td>
-                <td className="px-4 py-2 text-right">
-                  <button onClick={() => setEditing(c)} className="text-slate-500 hover:text-slate-900">
-                    {t('common.edit')}
-                  </button>
-                </td>
+          <table className="w-full bg-white text-sm">
+            <thead className="bg-slate-50 text-left text-slate-500">
+              <tr>
+                <th className="px-4 py-2">{t('clients.name')}</th>
+                <th className="px-4 py-2">{t('clients.cnpj')}</th>
+                <th className="px-4 py-2">{t('clients.contactName')}</th>
+                <th className="px-4 py-2 text-right">{t('common.actions')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {clients.map((c) => (
+                <tr key={c.id} className="border-t border-slate-100">
+                  <td className="px-4 py-2 font-medium text-slate-800">{c.name}</td>
+                  <td className="px-4 py-2 text-slate-500">{c.cnpj ?? '—'}</td>
+                  <td className="px-4 py-2 text-slate-500">{c.contact_name ?? '—'}</td>
+                  <td className="px-4 py-2 text-right">
+                    <button
+                      onClick={() => navigate(`/clients/${c.id}`)}
+                      className="mr-3 text-blue-600 hover:text-blue-800"
+                    >
+                      {t('clients.view')}
+                    </button>
+                    <button onClick={() => setEditing(c)} className="text-slate-500 hover:text-slate-900">
+                      {t('common.edit')}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

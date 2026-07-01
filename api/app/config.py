@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     # URLs de retorno do Checkout (o frontend trata; default p/ dev)
     billing_success_url: str = "http://localhost:3000/billing/sucesso"
     billing_cancel_url: str = "http://localhost:3000/billing/cancelado"
+    # CORS: lista separada por vírgula. Em dev fica "*"; em prod, ex: "https://nr12.relatoriorapido.com"
+    cors_origins: str = "*"
 
 
 settings = Settings()

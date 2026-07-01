@@ -2,8 +2,10 @@ fastapi
 uvicorn[standard]
 supabase
 pydantic-settings
+pydantic[email]
 anthropic
 voyageai
 stripe
 reportlab
+slowapi
 pytest
